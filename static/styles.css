@@ -82,9 +82,17 @@ header, #controls, #status {
     overflow: hidden; /* Hide any overflowing cards */
 }
 
-.card{
-    width: 100px; /* Width of the placeholder */
-    height: 184.5px; /* Maintain the aspect ratio */
+.cardshape{
+    width: 75px; /* Width of the placeholder */
+    height: 138.375px; /* Maintain the aspect ratio */
+}
+
+.playable{
+    border: 2px solid #72de1a;
+}
+
+.not-playable{
+    border: 2px solid #de1a55;
 }
 
 /* Styling for each card image */

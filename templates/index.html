@@ -52,8 +52,12 @@
                 const cardElement = document.createElement('img');
                 cardElement.src = `${card['path']}`;
                 cardElement.alt = card;
-                cardElement.classList.add('card-hand', 'card');  // Add the card class
-                cardElement.classList.add('card');  // Add the card class
+                cardElement.classList.add('card-hand', 'cardshape');  // Add the card class
+                if (card['is_playable']) {
+                    cardElement.classList.add('playable');
+                } else {
+                    cardElement.classList.add('not-playable');
+                }
                 handDiv.appendChild(cardElement);
 
                 const offset = start + index * overlap; // Calculate the offset for each card
@@ -85,7 +89,12 @@
                     const cardElement = document.createElement('img');
                     cardElement.src = `${card['path']}`;
                     cardElement.alt = card; // Assuming the card object has a 'name' property
-                    cardElement.classList.add('card-stack', 'card');
+                    cardElement.classList.add('card-stack', 'cardshape');
+                    if (card['is_playable']) {
+                        cardElement.classList.add('playable');
+                    } else {
+                        cardElement.classList.add('not-playable');
+                    }
                     stackDiv.appendChild(cardElement);
 
                     const offset = i * overlapOffset; // Calculate the offset for each card
