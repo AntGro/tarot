@@ -3,7 +3,6 @@
 
 ```shell
 conda activate tarot 
-gunicorn eventlet flask flask_socketio numpy pydantic
 
 gunicorn -k eventlet -w 1 app:app
 
