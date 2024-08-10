@@ -1,0 +1,6 @@
+gunicorn
+eventlet
+flask
+flask_socketio
+numpy
+pydantic

@@ -311,9 +311,3 @@ class CardGame(BaseModel):
         else:
             vs_card = None
         playing_user.compute_playable_cards(vs_card=vs_card)
-
-
-if __name__ == "__main__":
-    game = CardGame()
-    game.deal_cards(7)
-    print(game)
