@@ -49,9 +49,8 @@ header, #controls, #status {
 }
 
 
-
 /* Container for all card stacks */
-#tablecards-container {
+#tablecards-container, #opponent-tablecards-container {
     display: flex;
     justify-content: center;
     position: relative;
@@ -61,11 +60,10 @@ header, #controls, #status {
 }
 
 
-
 /* Styling for each card stack */
 .stackofcards {
     flex-shrink: 0; /* Prevents card stacks from shrinking */
-    width: 130px; /* Width of the card stack container */
+    width: 110px; /* Width of the card stack container */
     height: 260px; /* Height of the card stack container */
     position: relative; /* Needed for positioning card stack elements */
     display: flex;
@@ -82,16 +80,16 @@ header, #controls, #status {
     overflow: hidden; /* Hide any overflowing cards */
 }
 
-.cardshape{
+.cardshape {
     width: 75px; /* Width of the placeholder */
     height: 138.375px; /* Maintain the aspect ratio */
 }
 
-.playable{
+.playable, .card-stack-playable, .card-hand-playable {
     border: 2px solid #72de1a;
 }
 
-.not-playable{
+.not-playable {
     border: 2px solid #de1a55;
 }
 
@@ -106,12 +104,12 @@ header, #controls, #status {
     z-index: 1;
 }
 
-.card-stack:hover {
+.card-stack-playable:hover {
     transform: translate(-50%, -50%) translateX(var(--card-offset, 0)) translateY(calc(var(--card-offset, 0) - 20px));
     z-index: 2;
 }
 
-#hand {
+#hand-container, #opponent-hand-container {
     display: flex;
     justify-content: center;
     position: relative;
@@ -126,7 +124,7 @@ header, #controls, #status {
     transform: translateX(var(--card-offset, 0)); /* Dynamic offset */
 }
 
-.card-hand:hover {
+.card-hand-playable:hover {
     transform: translateY(-20px) translateX(var(--card-offset, 0)); /* Lift the card up on hover */
     z-index: 2;
 }

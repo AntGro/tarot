@@ -1,14 +1,14 @@
 # game.py
 from __future__ import annotations
 
+import bisect
 import enum
 import random
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Type
+from typing import Dict, List, Tuple
 
 import numpy as np
 from pydantic import BaseModel, field_validator, computed_field, Field
-import bisect
 
 
 class CardType(str, enum.Enum):
@@ -213,8 +213,10 @@ class CardHand(BaseModel):
 class Player(BaseModel):
     username: str
     hand: CardHand
+    session_id: str
     cards_on_table: List[CardStack]
     sorted_available_cards: Dict[Suit | CardType, List[Card]] = {}
+    backcard: str = BACK_CARD_PATH
 
     def model_post_init(self, __context):
         self.sorted_available_cards = {CardType.TRUMP: [], CardType.FOOL: [], **{suit: [] for suit in Suit}}
@@ -275,14 +277,12 @@ class CardGame(BaseModel):
     active_card: Tuple[str, Card] | None = None  # card played by a user
 
     def model_post_init(self, __context):
-        self.player_usernames = [usn for usn in self.player_usernames]
-        for usn in self.player_usernames:
-            self.deal_cards(username=usn)
+        assert len(self.players) == 0
 
     def shuffle_deck(self):
         self.deck.shuffle()
 
-    def deal_cards(self, username):
+    def deal_cards(self, username: str, session_id: str):
         self.shuffle_deck()
         stacks = []
         for n in range(7, 0, -1):
@@ -290,7 +290,9 @@ class CardGame(BaseModel):
             stacks.append(stack)
 
         self.players[username] = Player(username=username, hand=CardHand(cards=self.deck.deal(11)),
-                                        cards_on_table=stacks)
+                                        cards_on_table=stacks, session_id=session_id)
+        self.player_usernames.append(username)
+
         if len(self.players) == 2:
             self.active_player_ind = np.random.choice([0, 1])
             self.refresh_playable_card()
