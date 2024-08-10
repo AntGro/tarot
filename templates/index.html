@@ -18,6 +18,8 @@
 <div id="status"></div>
 <div id="game-container">
     <div id="game">
+        <div id="playedcards-container">
+        </div>
         <div id="tablecards-container">
         </div>
         <div id="hand"></div>
@@ -31,30 +33,42 @@
             socket.emit('join', {username, room});
         }
 
-        socket.on('status', (data) => {
-            document.getElementById('status').innerHTML = data.msg;
-        });
-
-        socket.on('handcards', (data) => {
+        function updateHandCards(data) {
             const handDiv = document.getElementById('hand');
             handDiv.innerHTML = '';
-            data.hand.forEach(card => {
+
+            const overlap = 70; // Define overlap amount
+            const cardWidth = 100; // Define card width
+            const cardsCount = data.length; // Number of cards
+
+            // Calculate the total width required to display all cards with overlap
+            const totalWidth = cardWidth + (cardsCount - 1) * overlap;
+            const start = -totalWidth / 2 + cardWidth / 2
+
+            // Set container width to accommodate all cards
+            handDiv.style.width = `${totalWidth}px`;
+
+            data.forEach((card, index) => {
                 const cardElement = document.createElement('img');
                 cardElement.src = `${card['path']}`;
                 cardElement.alt = card;
-                cardElement.classList.add('handcard');  // Add the card class
+                cardElement.classList.add('card-hand', 'card');  // Add the card class
+                cardElement.classList.add('card');  // Add the card class
                 handDiv.appendChild(cardElement);
-            });
-        });
 
-        socket.on('tablecards', (data) => {
+                const offset = start + index * overlap; // Calculate the offset for each card
+                cardElement.style.setProperty('--card-offset', `${offset}px`);
+            });
+        }
+
+        function updateTableCards(data) {
             const cardStacksContainer = document.getElementById('tablecards-container');
             cardStacksContainer.innerHTML = '';  // Clear previous sets
 
-            data.tablecards.forEach((stack, index) => {
+            data.forEach((stack, index) => {
                 // Create the stack container
                 const cardStackDiv = document.createElement('div');
-                cardStackDiv.classList.add('card-stack');
+                cardStackDiv.classList.add('stackofcards');
                 cardStackDiv.id = `set-${index + 1}`;
 
                 // Create the hand container
@@ -66,26 +80,48 @@
                 {#const cardCount = stack.cards.length;#}
                 const overlapOffset = 2;  // Adjust this value for how much each card should overlap
 
-
                 // Add cards to the hand container
-                stack.cards.forEach(card => {
+                stack.cards.forEach((card, i) => {
                     const cardElement = document.createElement('img');
                     cardElement.src = `${card['path']}`;
                     cardElement.alt = card; // Assuming the card object has a 'name' property
-                    cardElement.classList.add('stackcard');
+                    cardElement.classList.add('card-stack', 'card');
                     stackDiv.appendChild(cardElement);
 
+                    const offset = i * overlapOffset; // Calculate the offset for each card
+                    cardElement.style.setProperty('--card-offset', `${offset}px`);
                     // Calculate the position for this card
-                    {#const topPosition = i * overlapOffset;#}
-                    {#cardElement.style.top = `${topPosition}px`;#}
-                    {#cardElement.style.left = `${topPosition}px`;#}
                 });
 
                 // Append the card set to the container
                 cardStacksContainer.appendChild(cardStackDiv);
             });
+        }
 
+        function gameSetup(data) {
+            updateHandCards(data.hand.cards);
+            updateTableCards(data.cards_on_table);
+        }
+
+        socket.on('status', (data) => {
+            document.getElementById('status').innerHTML = data.msg;
         });
+
+        socket.on('game-setup', (data) => {
+            gameSetup(data.player);
+        });
+
+
+        {#socket.on('playcard1', (data) => {#}
+        {#    const playcardContainer = document.getElementById('playedcards-container');#}
+        {#    const playedcard = document.getElementById('player1-card');#}
+        {##}
+        {#    cardStacksContainer.appendChild(cardStackDiv);#}
+        {##}
+        {#    <div class="playedcard-placeholder" id="player1-card"></div>#}
+        {#    <div class="playedcard-placeholder" id="player2-card"></div>#}
+        {# })#}
+
 
         socket.on('update', (data) => {
             // Update the game state based on the move

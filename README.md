@@ -3,4 +3,8 @@
 
 ```shell
 gunicorn -k eventlet -w 1 app:app
+
+# kill
+lsof -i tcp:8000
+kill -9 $PID
 ```

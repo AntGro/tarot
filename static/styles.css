@@ -15,9 +15,40 @@ header, #controls, #status {
     flex-grow: 1;
     display: flex;
     justify-content: center;
-    align-items: flex-end;
+    align-items: normal;
     position: relative;
 }
+
+/* Container for all card stacks */
+#playedcards-container {
+    background-color: #f825ad;
+    display: flex;
+    justify-content: center;
+    position: relative;
+    transform: translateX(-50%);
+    left: 50%;
+}
+
+#playedcards-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Placeholder for cards played by Player 1 and Player 2 */
+.playedcard-placeholder {
+    width: 100px; /* Width of the placeholder */
+    height: 184.5px; /* Maintain the aspect ratio */
+    background-color: #ccc; /* Light gray background as a placeholder */
+    border: 2px dashed #aaa; /* Dashed border to indicate it's a placeholder */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 20px; /* Add some spacing between the placeholders */
+}
+
+
 
 /* Container for all card stacks */
 #tablecards-container {
@@ -26,41 +57,50 @@ header, #controls, #status {
     position: relative;
     transform: translateX(-50%);
     left: 50%;
+    gap: 5px
 }
 
+
+
 /* Styling for each card stack */
-.card-stack {
-    background-color: #4d4dad;
+.stackofcards {
     flex-shrink: 0; /* Prevents card stacks from shrinking */
-    width: 110px; /* Width of the card stack container */
-    height: 210px; /* Height of the card stack container */
+    width: 130px; /* Width of the card stack container */
+    height: 260px; /* Height of the card stack container */
     position: relative; /* Needed for positioning card stack elements */
     display: flex;
-    align-items: center; /* Centers the stack vertically within the card-stack container */
-    justify-content: center; /* Centers the stack horizontally within the card-stack container */
+    align-items: center; /* Centers the stack vertically within the stackofcards container */
+    justify-content: center; /* Centers the stack horizontally within the stackofcards container */
 }
 
 /* Container for the cards in a stack */
 .stack {
+    /*background-color: #f825ad;*/
     position: relative;
     width: 100%; /* Full width of the card stack container */
     height: 100%; /* Full height of the card stack container */
     overflow: hidden; /* Hide any overflowing cards */
 }
 
-/* Styling for each card image */
-.stackcard {
-    position: absolute;
-    width: 100px; /* Width of each card */
-    height: 184.5px; /* Maintain the aspect ratio: height auto is calculated by aspect ratio */
-    cursor: pointer;
-    transition: transform 0.2s;
+.card{
+    width: 100px; /* Width of the placeholder */
+    height: 184.5px; /* Maintain the aspect ratio */
 }
 
-
-.stackcard:hover {
-    transform: scale(1.1);
+/* Styling for each card image */
+.card-stack {
+    position: absolute;
+    cursor: pointer;
+    transition: transform 0.2s;
+    left: 50%; /* Center card horizontally */
+    top: 50%; /* Center card vertically */
+    transform: translate(-50%, -50%) translateX(var(--card-offset, 0)) translateY(var(--card-offset, 0)); /* Center card and apply dynamic offset */
     z-index: 1;
+}
+
+.card-stack:hover {
+    transform: translate(-50%, -50%) translateX(var(--card-offset, 0)) translateY(calc(var(--card-offset, 0) - 20px));
+    z-index: 2;
 }
 
 #hand {
@@ -71,15 +111,14 @@ header, #controls, #status {
     left: 50%;
 }
 
-.handcard {
-    width: 100px; /* Adjust the width to your preference */
-    height: 184.5px; /* Maintain the aspect ratio: use auto */
-    margin-left: -30px; /* Adjust to control overlap */
+.card-hand {
+    position: absolute; /* Ensure proper overlap */
     z-index: 1;
     transition: transform 0.3s;
+    transform: translateX(var(--card-offset, 0)); /* Dynamic offset */
 }
 
-.handcard:hover {
-    transform: translateY(-20px); /* Lift the card up when hovered */
+.card-hand:hover {
+    transform: translateY(-20px) translateX(var(--card-offset, 0)); /* Lift the card up on hover */
     z-index: 2;
 }

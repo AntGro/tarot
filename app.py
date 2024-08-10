@@ -39,16 +39,23 @@ def on_join(data):
         'status',
         {'msg': f"{username} has entered the room."}, room=room
     )
-    print(games[room].players[username].cards_on_table)
+
+    # emit(
+    #     'tablecards',
+    #     {'username': username,
+    #      'tablecards': list(map(lambda c: c.dict(), games[room].players[username].cards_on_table))},
+    #     room=room
+    # )
+    #
+    # emit(
+    #     'card-hands',
+    #     {'username': username, 'hand': list(map(lambda c: c.dict(), games[room].players[username]))},
+    #     room=room
+    # )
+
     emit(
-        'tablecards',
-        {'username': username,
-         'tablecards': list(map(lambda c: c.dict(), games[room].players[username].cards_on_table))},
-        room=room
-    )
-    emit(
-        'handcards',
-        {'username': username, 'hand': list(map(lambda c: c.dict(), games[room].players[username].hand.cards))},
+        'game-setup',
+        {'username': username, 'player': games[room].players[username].dict()},
         room=room
     )
 

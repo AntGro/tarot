@@ -206,8 +206,8 @@ class CardGame(BaseModel):
     def deal_cards(self, username):
         self.shuffle_deck()
         stacks = []
-        for i in range(7):
-            stack = CardStack(cards=self.deck.deal(i + 1))
+        for n in range(7, 0, -1):
+            stack = CardStack(cards=self.deck.deal(n=n))
             stacks.append(stack)
 
         self.players[username] = Player(username=username, hand=CardHand(cards=self.deck.deal(11)),
