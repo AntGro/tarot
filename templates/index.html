@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Card Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', t=timestamp) }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+<header>
+    <h1>Tarot 1v1</h1>
+</header>
+<div id="controls">
+    <input id="username" placeholder="Enter your username"/>
+    <input id="room" placeholder="Enter room name"/>
+    <button onclick="joinRoom()">Join Room</button>
+</div>
+<div id="status"></div>
+<div id="game-container">
+    <div id="game">
+        <div id="tablecards-container">
+        </div>
+        <div id="hand"></div>
+    </div>
+    <script>
+        const socket = io();
+
+        function joinRoom() {
+            const username = document.getElementById('username').value;
+            const room = document.getElementById('room').value;
+            socket.emit('join', {username, room});
+        }
+
+        socket.on('status', (data) => {
+            document.getElementById('status').innerHTML = data.msg;
+        });
+
+        socket.on('handcards', (data) => {
+            const handDiv = document.getElementById('hand');
+            handDiv.innerHTML = '';
+            data.hand.forEach(card => {
+                const cardElement = document.createElement('img');
+                cardElement.src = `${card['path']}`;
+                cardElement.alt = card;
+                cardElement.classList.add('handcard');  // Add the card class
+                handDiv.appendChild(cardElement);
+            });
+        });
+
+        socket.on('tablecards', (data) => {
+            const cardStacksContainer = document.getElementById('tablecards-container');
+            cardStacksContainer.innerHTML = '';  // Clear previous sets
+
+            data.tablecards.forEach((stack, index) => {
+                // Create the stack container
+                const cardStackDiv = document.createElement('div');
+                cardStackDiv.classList.add('card-stack');
+                cardStackDiv.id = `set-${index + 1}`;
+
+                // Create the hand container
+                const stackDiv = document.createElement('div');
+                stackDiv.classList.add('stack');
+                stackDiv.id = `stack-${index + 1}`;
+                cardStackDiv.appendChild(stackDiv);
+
+                {#const cardCount = stack.cards.length;#}
+                const overlapOffset = 2;  // Adjust this value for how much each card should overlap
+
+
+                // Add cards to the hand container
+                stack.cards.forEach(card => {
+                    const cardElement = document.createElement('img');
+                    cardElement.src = `${card['path']}`;
+                    cardElement.alt = card; // Assuming the card object has a 'name' property
+                    cardElement.classList.add('stackcard');
+                    stackDiv.appendChild(cardElement);
+
+                    // Calculate the position for this card
+                    {#const topPosition = i * overlapOffset;#}
+                    {#cardElement.style.top = `${topPosition}px`;#}
+                    {#cardElement.style.left = `${topPosition}px`;#}
+                });
+
+                // Append the card set to the container
+                cardStacksContainer.appendChild(cardStackDiv);
+            });
+
+        });
+
+        socket.on('update', (data) => {
+            // Update the game state based on the move
+            console.log(data.move);
+        });
+    </script>
+</body>
+</html>
