@@ -48,6 +48,7 @@ class Card(BaseModel, ABC):
 
 
 BACK_CARD_PATH = f"/static/images/cardback.jpg"
+CARD_PLACEHOLDER_PATH = f"/static/images/card_placeholder.png"
 
 
 class TrumpCard(Card):
@@ -126,19 +127,21 @@ class SimpleCard(Card):
 
     @computed_field
     def _path(self) -> str:
+        extension = "png"
         if self.value <= 10:
             val = self.value if self.value > 1 else "ace"
         elif self.value == 11:
             val = "jack"
         elif self.value == 12:
             val = "knight"
+            extension = "jpeg"
         elif self.value == 13:
             val = "queen"
         elif self.value == 14:
             val = "king"
         else:
             raise ValueError(self.value)
-        return f"/static/images/{val}_of_{self.suit.value}.png"
+        return f"/static/images/{val}_of_{self.suit.value}.{extension}"
 
     @computed_field
     def is_oudler(self) -> bool:
@@ -217,14 +220,32 @@ class Player(BaseModel):
     cards_on_table: List[CardStack]
     sorted_available_cards: Dict[Suit | CardType, List[Card]] = {}
     backcard: str = BACK_CARD_PATH
+    card_placeholder: str = CARD_PLACEHOLDER_PATH
+    game_score: int = 0
+    game_n_oudler: int = 0
+
+    def on_game_reset(self) -> None:
+        self.game_score = 0
+        self.game_n_oudler = 0
 
     def model_post_init(self, __context):
         self.sorted_available_cards = {CardType.TRUMP: [], CardType.FOOL: [], **{suit: [] for suit in Suit}}
         for card in self.hand.cards:
-            if isinstance(card, SimpleCard):
-                bisect.insort(self.sorted_available_cards[card.suit], card)
-            else:
-                bisect.insort(self.sorted_available_cards[card.card_type], card)
+            self.insert_card_sorted(card=card)
+        for stack in self.cards_on_table:
+            self.insert_card_sorted(card=stack.get_facecard())
+
+    def insert_card_sorted(self, card):
+        if isinstance(card, SimpleCard):
+            bisect.insort(self.sorted_available_cards[card.suit], card)
+        else:
+            bisect.insort(self.sorted_available_cards[card.card_type], card)
+
+    def remove_card_sorted(self, card):
+        if isinstance(card, SimpleCard):
+            self.sorted_available_cards[card.suit].remove(card)
+        else:
+            self.sorted_available_cards[card.card_type].remove(card)
 
     def set_all_cards_not_playable(self) -> None:
         for card_stack in self.cards_on_table:
@@ -233,8 +254,18 @@ class Player(BaseModel):
 
     def set_all_cards_playable(self) -> None:
         for card_stack in self.cards_on_table:
-            card_stack.get_facecard().is_playable = True
+            if len(card_stack.cards) > 0:
+                card_stack.get_facecard().is_playable = True
         self.hand.set_all_cards_playability(playable=True)
+
+    def update_stack(self, stack_index) -> tuple[Card, Card | None]:
+        stack = self.cards_on_table[stack_index]
+        card = stack.cards.pop()
+        revealed_card = None
+        if len(stack.cards) > 0:
+            revealed_card = stack.cards[-1]
+            self.insert_card_sorted(card=revealed_card)
+        return card, revealed_card
 
     def compute_playable_cards(self, vs_card: Card | None) -> None:
         if vs_card is None or isinstance(vs_card, Fool):
@@ -274,13 +305,26 @@ class CardGame(BaseModel):
     players: Dict[str, Player] = {}
     player_usernames: List[str] = []
     active_player_ind: int | None = None
-    active_card: Tuple[str, Card] | None = None  # card played by a user
+    active_card: Card | None = None  # card played by a user
+    cards_to_reveal: list[Card] = []
 
     def model_post_init(self, __context):
         assert len(self.players) == 0
 
     def shuffle_deck(self):
         self.deck.shuffle()
+
+    def get_active_player_usn(self) -> str:
+        return self.player_usernames[self.active_player_ind]
+
+    def get_inactive_player_usn(self) -> str:
+        return self.player_usernames[self.get_inactive_player_ind()]
+
+    def get_active_player(self) -> Player:
+        return self.players[self.get_active_player_usn()]
+
+    def get_inactive_player(self) -> Player:
+        return self.players[self.get_inactive_player_usn()]
 
     def deal_cards(self, username: str, session_id: str):
         self.shuffle_deck()
@@ -303,13 +347,93 @@ class CardGame(BaseModel):
             return None
         return (self.active_player_ind + 1) % 2
 
-    def refresh_playable_card(self) -> None:
-        playing_user = self.players[self.player_usernames[self.active_player_ind]]
-        not_playing_user = self.players[self.player_usernames[self.get_inactive_player_ind()]]
-        not_playing_user.set_all_cards_not_playable()
+    def get_active_player_ind(self) -> int | None:
+        return self.active_player_ind
 
+    def _play_card(self, card: Card) -> None:
+        self.get_active_player().remove_card_sorted(card=card)
+        if self.active_card is None:
+            self.active_card = card
+            self.active_player_ind = self.get_inactive_player_ind()  # the other is to play next
+        else:
+            winner_id = self.compare_cards(active_player_card=card, inactive_player_card=self.active_card)
+            self.active_player_ind = winner_id
+            self.active_card = None
+            for card in self.cards_to_reveal:
+                card.is_face_down = False
+                self.cards_to_reveal = []
+        self.refresh_playable_card()
+
+    def compare_cards(self, active_player_card: Card, inactive_player_card: Card) -> int:
+        """ Return ID of the player who should play next and update the score """
+        active_player = self.get_active_player()
+        inactive_player = self.get_inactive_player()
+
+        sum_card_points = inactive_player_card.point + active_player_card.point
+        sum_n_oudlers = int(inactive_player_card.is_oudler) + int(active_player_card.is_oudler)
+
+        fool_played = False
+        if isinstance(inactive_player_card, Fool):
+            fool_played = True
+            winner_id = self.active_player_ind
+            inactive_player.game_score += inactive_player_card.point - 1
+            inactive_player.game_n_oudler += 1
+            active_player.game_score += active_player_card.point
+            active_player.game_n_oudler += int(active_player_card.is_oudler)
+
+        elif isinstance(active_player_card, Fool):
+            fool_played = True
+            winner_id = self.get_inactive_player_ind()
+            active_player.game_score += active_player_card.point - 1
+            active_player.game_n_oudler += 1
+            inactive_player.game_score += inactive_player_card.point
+            inactive_player.game_n_oudler += int(inactive_player_card.is_oudler)
+
+        elif isinstance(inactive_player_card, TrumpCard):
+            if not isinstance(active_player_card, TrumpCard) or active_player_card.value < inactive_player_card.value:
+                winner_id = self.get_inactive_player_ind()
+            else:
+                winner_id = self.get_active_player_ind()
+
+        else:  # Inactive player played a simple card
+            assert isinstance(inactive_player_card, SimpleCard)
+            if isinstance(active_player_card, TrumpCard):  # active player cut
+                winner_id = self.get_active_player_ind()
+            elif active_player_card.suit != inactive_player_card.suit:  # active player could not cut
+                winner_id = self.get_inactive_player_ind()
+            elif active_player_card.value > inactive_player_card.value:
+                winner_id = self.get_active_player_ind()
+            else:
+                winner_id = self.get_inactive_player_ind()
+
+        if not fool_played:
+            winner = self.players[self.player_usernames[winner_id]]
+            winner.game_score += sum_card_points - 1
+            winner.game_n_oudler += sum_n_oudlers
+
+        return winner_id
+
+    def play_handcard(self, handcard_index: int):
+        assert self.active_player_ind is not None
+        card = self.get_active_player().hand.cards.pop(handcard_index)
+        self._play_card(card=card)
+        return card
+
+    def play_tablecard(self, stack_index: int) -> Card:
+        assert self.active_player_ind is not None
+        card, revealed_card = self.get_active_player().update_stack(stack_index)
+        if revealed_card is not None:
+            self.cards_to_reveal.append(revealed_card)
+
+        self._play_card(card=card)
+        return card
+
+    def refresh_playable_card(self) -> None:
+        self.get_inactive_player().set_all_cards_not_playable()
+
+        playing_user = self.get_active_player()
         if self.active_card is not None:
-            vs_card = self.active_card[1]
+            vs_card = self.active_card
         else:
             vs_card = None
         playing_user.compute_playable_cards(vs_card=vs_card)

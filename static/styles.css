@@ -21,33 +21,27 @@ header, #controls, #status {
 
 /* Container for all card stacks */
 #playedcards-container {
-    background-color: #f825ad;
-    display: flex;
-    justify-content: center;
-    position: relative;
-    transform: translateX(-50%);
-    left: 50%;
+    /*background-color: #f825ad;*/
+    position: relative; /* Ensure it's a containing block for absolute positioning */
+    width: 100%; /* Make it full width or adjust as necessary */
+    height: 200px; /* Adjust the height based on your design */
 }
 
-#playedcards-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 20px;
+#opponent-playcard-container, #player-playcard-container {
+    position: absolute;
+    top: 50%; /* Center vertically */
+    transform: translateY(-50%); /* Center the container vertically */
 }
 
-/* Placeholder for cards played by Player 1 and Player 2 */
-.playedcard-placeholder {
-    width: 100px; /* Width of the placeholder */
-    height: 184.5px; /* Maintain the aspect ratio */
-    background-color: #ccc; /* Light gray background as a placeholder */
-    border: 2px dashed #aaa; /* Dashed border to indicate it's a placeholder */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 0 20px; /* Add some spacing between the placeholders */
+#opponent-playcard-container {
+    left: 35%; /* Adjust as needed to position slightly to the left */
+    top: 35%; /* Position slightly up from the top */
 }
 
+#player-playcard-container {
+    right: 35%; /* Adjust as needed to position slightly to the right */
+    bottom: 55%; /* Position slightly down from the bottom */
+}
 
 /* Container for all card stacks */
 #tablecards-container, #opponent-tablecards-container {
@@ -59,12 +53,11 @@ header, #controls, #status {
     gap: 5px
 }
 
-
 /* Styling for each card stack */
 .stackofcards {
     flex-shrink: 0; /* Prevents card stacks from shrinking */
     width: 110px; /* Width of the card stack container */
-    height: 260px; /* Height of the card stack container */
+    height: 230px; /* Height of the card stack container */
     position: relative; /* Needed for positioning card stack elements */
     display: flex;
     align-items: center; /* Centers the stack vertically within the stackofcards container */
@@ -73,7 +66,7 @@ header, #controls, #status {
 
 /* Container for the cards in a stack */
 .stack {
-    /*background-color: #f825ad;*/
+    /*background-color: #25f8ae;*/
     position: relative;
     width: 100%; /* Full width of the card stack container */
     height: 100%; /* Full height of the card stack container */
@@ -87,16 +80,16 @@ header, #controls, #status {
 
 .playable, .card-stack-playable, .card-hand-playable {
     border: 2px solid #72de1a;
+    cursor: pointer;
 }
 
 .not-playable {
-    border: 2px solid #de1a55;
+    /*border: 2px solid #de1a55;*/
 }
 
 /* Styling for each card image */
 .card-stack {
     position: absolute;
-    cursor: pointer;
     transition: transform 0.2s;
     left: 50%; /* Center card horizontally */
     top: 50%; /* Center card vertically */

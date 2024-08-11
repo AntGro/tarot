@@ -7,9 +7,11 @@
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body>
-<header>
-    <h1>Tarot 1v1</h1>
-</header>
+<div id="title">
+    <header>
+        <h1>Tarot 1v1</h1>
+    </header>
+</div>
 <div id="controls">
     <input id="username" placeholder="Enter your username"/>
     <input id="room" placeholder="Enter room name"/>
@@ -23,6 +25,8 @@
         <div id="opponent-tablecards-container">
         </div>
         <div id="playedcards-container">
+            <div id="opponent-playcard-container"></div>
+            <div id="player-playcard-container"></div>
         </div>
         <div id="tablecards-container">
         </div>
@@ -37,6 +41,8 @@
             socket.emit('join', {username, room});
             const controlsDiv = document.getElementById('controls');
             controlsDiv.style.display = 'none';
+            const titleDiv = document.getElementById('title');
+            titleDiv.style.display = 'none';
         }
 
         function updateHandCards(handcards, is_opponent, backcard) {
@@ -70,7 +76,11 @@
                 cardElement.alt = card;
                 cardElement.classList.add('card-hand', 'cardshape');  // Add the card class
                 if (card['is_playable'] && !is_opponent) {
-                    cardElement.classList.add('.card-hand-playable');
+                    cardElement.classList.add('card-hand-playable');
+                    // Add a click event listener to the card element
+                    cardElement.addEventListener('click', () => {
+                        handleHandCardClick(index);
+                    });
                 } else {
                     cardElement.classList.add('not-playable');
                 }
@@ -104,7 +114,7 @@
                 {#const cardCount = stack.cards.length;#}
                 const overlapOffset = 2;  // Adjust this value for how much each card should overlap
 
-                // Add cards to the hand container
+                // Add cards to the stack container
                 stack.cards.forEach((card, i) => {
                     const cardElement = document.createElement('img');
                     cardElement.src = `${card['path']}`;
@@ -112,6 +122,10 @@
                     cardElement.classList.add('card-stack', 'cardshape');
                     if (card['is_playable'] && !is_opponent) {
                         cardElement.classList.add('card-stack-playable');
+                        // Add a click event listener to the card element
+                        cardElement.addEventListener('click', () => {
+                            handleTableCardClick(index);
+                        });
                     } else {
                         cardElement.classList.add('not-playable');
                     }
@@ -127,44 +141,87 @@
             });
         }
 
-        function gameSetup(player) {
+        function restoreCardPlaceholders(placeholder_path) {
+            const opponentCardElement = document.createElement('img');
+            opponentCardElement.src = `${placeholder_path}`;
+            opponentCardElement.alt = "OPPONENT PLAYED CARD";
+            opponentCardElement.classList.add('cardshape');  // Add the card class
+            const oppPlaycardDiv = document.getElementById('opponent-playcard-container');
+            oppPlaycardDiv.innerHTML = ""
+            oppPlaycardDiv.appendChild(opponentCardElement);
+
+            const playerCardElement = document.createElement('img');
+            playerCardElement.src = `${placeholder_path}`;
+            playerCardElement.alt = "OPPONENT PLAYED CARD";
+            playerCardElement.classList.add('cardshape');  // Add the card class
+            const playerPlaycardDiv = document.getElementById('player-playcard-container');
+            playerPlaycardDiv.innerHTML = ""
+            playerPlaycardDiv.appendChild(playerCardElement);
+        }
+
+        function updatePlaycard(card, current) {
+            const cardElement = document.createElement('img');
+            cardElement.src = `${card.path}`;
+            cardElement.alt = "PLAYED CARD";
+            cardElement.classList.add('cardshape', 'not-playable');  // Add the card class
+            let elementIDprefix = "";
+            if (current) {
+                elementIDprefix = "player";
+            } else {
+                elementIDprefix = "opponent";
+            }
+            const playcardDiv = document.getElementById(`${elementIDprefix}-playcard-container`);
+            playcardDiv.innerHTML = ""
+            playcardDiv.appendChild(cardElement);
+
+        }
+
+        function playerUpdate(player) {
             updateHandCards(player.hand.cards, false, player.backcard);
             updateTableCards(player.cards_on_table, false);
         }
+
 
         function opponentSetup(opponent) {
             updateHandCards(opponent.hand.cards, true, opponent.backcard);
             updateTableCards(opponent.cards_on_table, true);
         }
 
+
+        function handleTableCardClick(stack_index) {
+            // Emit a socket event with the card details
+            const username = document.getElementById('username').value;
+            const room = document.getElementById('room').value;
+            socket.emit('table-card-click', {room, username, stack_index});
+        }
+
+        function handleHandCardClick(handcard_index) {
+            // Emit a socket event with the card details
+            const username = document.getElementById('username').value;
+            const room = document.getElementById('room').value;
+            socket.emit('hand-card-click', {room, username, handcard_index});
+        }
+
         socket.on('status', (data) => {
             document.getElementById('status').innerHTML = data.msg;
         });
 
-        socket.on('game-setup', (data) => {
-            gameSetup(data.player);
+        socket.on('restore-playcard-placeholders', (data) => {
+            restoreCardPlaceholders(data.placeholder_path);
+        });
+
+        socket.on('player-update', (data) => {
+            playerUpdate(data.player);
         });
 
         socket.on('opponent-setup', (data) => {
             opponentSetup(data.opponent);
         });
 
-
-        {#socket.on('playcard1', (data) => {#}
-        {#    const playcardContainer = document.getElementById('playedcards-container');#}
-        {#    const playedcard = document.getElementById('player1-card');#}
-        {##}
-        {#    cardStacksContainer.appendChild(cardStackDiv);#}
-        {##}
-        {#    <div class="playedcard-placeholder" id="player1-card"></div>#}
-        {#    <div class="playedcard-placeholder" id="player2-card"></div>#}
-        {# })#}
-
-
-        socket.on('update', (data) => {
-            // Update the game state based on the move
-            console.log(data.move);
+        socket.on('playcard-update', (data) => {
+            updatePlaycard(data.card, data.current);
         });
+
     </script>
 </body>
 </html>
