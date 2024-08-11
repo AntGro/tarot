@@ -67,6 +67,8 @@ def on_hand_card_click(data):
     handcard_index = data['handcard_index']
     game = games[room]
     player = game.get_active_player()
+    if game.active_card is None:
+        emit('restore-playcard-placeholders', {'placeholder_path': CARD_PLACEHOLDER_PATH}, room=room)
     played_card = game.play_handcard(handcard_index=handcard_index)
     game_update(game=game, played_card=played_card, player=player)
 
