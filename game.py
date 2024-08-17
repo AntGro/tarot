@@ -224,11 +224,18 @@ class Player(BaseModel):
     game_score: int = 0
     game_n_oudler: int = 0
 
+    @computed_field
+    def n_cards(self) -> int:
+        return len(self.hand.cards) + sum([len(stack.cards) for stack in self.cards_on_table])
+
     def on_game_reset(self) -> None:
         self.game_score = 0
         self.game_n_oudler = 0
 
     def model_post_init(self, __context):
+        self.sort_cards()
+
+    def sort_cards(self):
         self.sorted_available_cards = {CardType.TRUMP: [], CardType.FOOL: [], **{suit: [] for suit in Suit}}
         for card in self.hand.cards:
             self.insert_card_sorted(card=card)
@@ -303,6 +310,7 @@ class Player(BaseModel):
         self.cards_on_table = []
         self.game_n_oudler = 0
         self.sorted_available_cards = {}
+        self.on_game_reset()
 
 
 class CardGame(BaseModel):
@@ -313,6 +321,7 @@ class CardGame(BaseModel):
     active_card: Card | None = None  # card played by a user
     cards_to_reveal: list[Card] = []
     n_players: int = 0
+    last_starter_player_ind: int | None = None
 
     def model_post_init(self, __context):
         assert len(self.players) == 0
@@ -339,14 +348,24 @@ class CardGame(BaseModel):
             stack = CardStack(cards=self.deck.deal(n=n))
             stacks.append(stack)
 
-        self.players[username] = Player(username=username, hand=CardHand(cards=self.deck.deal(11)),
-                                        cards_on_table=stacks, session_id=session_id)
+        card_hand = CardHand(cards=self.deck.deal(11))
+        if username not in self.players:
+            self.players[username] = Player(username=username, hand=card_hand,
+                                            cards_on_table=stacks, session_id=session_id)
+        else:
+            self.players[username].hand = card_hand
+            self.players[username].cards_on_table = stacks
+            self.players[username].sort_cards()
+
         if username not in self.player_usernames:
             self.player_usernames.append(username)
 
         self.n_players += 1
         if self.n_players == 2:
-            self.active_player_ind = np.random.choice([0, 1])
+            if self.last_starter_player_ind is None:
+                self.last_starter_player_ind = np.random.choice([0, 1])
+            self.last_starter_player_ind = 1 - self.last_starter_player_ind
+            self.active_player_ind = self.last_starter_player_ind
             self.refresh_playable_card()
         return
 
@@ -384,16 +403,24 @@ class CardGame(BaseModel):
         if isinstance(inactive_player_card, Fool):
             fool_played = True
             winner_id = self.active_player_ind
-            inactive_player.game_score += inactive_player_card.point - 1
-            inactive_player.game_n_oudler += 1
+            if inactive_player.n_cards == 0:
+                active_player.game_score +=   inactive_player_card.point - 1
+                active_player.game_n_oudler += 1
+            else:
+                inactive_player.game_score += inactive_player_card.point - 1
+                inactive_player.game_n_oudler += 1
             active_player.game_score += active_player_card.point
             active_player.game_n_oudler += int(active_player_card.is_oudler)
 
         elif isinstance(active_player_card, Fool):
             fool_played = True
             winner_id = self.get_inactive_player_ind()
-            active_player.game_score += active_player_card.point - 1
-            active_player.game_n_oudler += 1
+            if inactive_player.n_cards == 0:
+                inactive_player.game_score += active_player_card.point - 1
+                inactive_player.game_n_oudler += 1
+            else:
+                active_player.game_score += active_player_card.point - 1
+                active_player.game_n_oudler += 1
             inactive_player.game_score += inactive_player_card.point
             inactive_player.game_n_oudler += int(inactive_player_card.is_oudler)
 
