@@ -299,6 +299,11 @@ class Player(BaseModel):
         else:
             raise ValueError(vs_card)
 
+    def new_game(self) -> None:
+        self.cards_on_table = []
+        self.game_n_oudler = 0
+        self.sorted_available_cards = {}
+
 
 class CardGame(BaseModel):
     deck: Deck = Field(default_factory=Deck)
@@ -307,6 +312,7 @@ class CardGame(BaseModel):
     active_player_ind: int | None = None
     active_card: Card | None = None  # card played by a user
     cards_to_reveal: list[Card] = []
+    n_players: int = 0
 
     def model_post_init(self, __context):
         assert len(self.players) == 0
@@ -335,9 +341,11 @@ class CardGame(BaseModel):
 
         self.players[username] = Player(username=username, hand=CardHand(cards=self.deck.deal(11)),
                                         cards_on_table=stacks, session_id=session_id)
-        self.player_usernames.append(username)
+        if username not in self.player_usernames:
+            self.player_usernames.append(username)
 
-        if len(self.players) == 2:
+        self.n_players += 1
+        if self.n_players == 2:
             self.active_player_ind = np.random.choice([0, 1])
             self.refresh_playable_card()
         return
@@ -437,3 +445,12 @@ class CardGame(BaseModel):
         else:
             vs_card = None
         playing_user.compute_playable_cards(vs_card=vs_card)
+
+    def new_game(self) -> None:
+        self.deck = Deck()
+        self.active_card = None
+        self.active_player_ind = None
+        self.cards_to_reveal = []
+        self.n_players = 0
+        for player in self.players.values():
+            player.new_game()

@@ -103,6 +103,9 @@ def game_update(game: CardGame, played_card: Card | None, player: Player | None)
                 emit('playcard-update', {'card': played_card.dict(), 'current': False}, room=current_player.session_id)
                 emit('playcard-update', {'card': played_card.dict(), 'current': True}, room=opponent.session_id)
 
+def game_reset():
+    pass
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5001, debug=True)
