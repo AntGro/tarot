@@ -15,4 +15,8 @@ lsof -i tcp:8000
 kill -9 $PID
 ```
 
+Expose Flask App with ngrok:
+In another terminal window, run:
+```shell
 ngrok http 5001
+```
