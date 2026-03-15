@@ -398,6 +398,26 @@ body {
 }
 .stack-card.not-playable { opacity: 0.7; }
 
+/* Stack count badge */
+.stack-count {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  background: rgba(0,0,0,0.8);
+  color: var(--gold);
+  font-size: 0.65rem;
+  font-weight: bold;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  border: 1px solid var(--gold-dim);
+  pointer-events: none;
+}
+
 /* Small stack cards for opponent */
 .mini-stack {
   position: relative;
@@ -1415,6 +1435,12 @@ function renderFromState(state) {
         el.style.position = 'absolute';
         ms.appendChild(el);
       });
+      if (stack.length > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'stack-count';
+        badge.textContent = stack.length;
+        ms.appendChild(badge);
+      }
       oppStacksDiv.appendChild(ms);
     });
   }
@@ -1461,6 +1487,12 @@ function renderFromState(state) {
       }
       sc.appendChild(wrapper);
     });
+    if (stack.length > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'stack-count';
+      badge.textContent = stack.length;
+      sc.appendChild(badge);
+    }
     playerStacksDiv.appendChild(sc);
   });
 
