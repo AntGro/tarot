@@ -161,17 +161,23 @@ body {
 /* ═══════════════════════ Connection Status ═══════════════════════ */
 #connection-status {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: var(--panel-bg);
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   z-index: 100;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
 }
+#connection-status:hover { opacity: 0.9; }
+#connection-status.connected-state { padding: 4px 8px; }
+#connection-status.connected-state #status-text { display: none; }
 .status-dot {
   width: 8px;
   height: 8px;
@@ -321,64 +327,30 @@ body {
   width: var(--card-w);
   height: var(--card-h);
   border-radius: var(--card-radius);
-  background: white;
   box-shadow: var(--card-shadow);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 4px 6px;
-  font-size: 0.85rem;
-  font-weight: 700;
   position: relative;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   flex-shrink: 0;
   cursor: default;
+  overflow: hidden;
 }
-.card.red { color: #c0392b; }
-.card.black { color: #2c3e50; }
-.card.trump { color: #2c3e50; background: linear-gradient(180deg, #fffbe6, #f5e6b8); }
-.card.fool { background: linear-gradient(135deg, #f0e6ff, #e6d5f5, #ffe6f0); }
+.card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--card-radius);
+  display: block;
+}
 .card.oudler { box-shadow: 0 0 0 2px var(--gold), var(--card-shadow); }
-
-.card-top { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
-.card-bottom { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; transform: rotate(180deg); }
-.card-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 2rem;
-  opacity: 0.3;
-}
-.card-center-trump {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 1.6rem;
-  font-weight: 900;
-  color: #5b3a00;
-  opacity: 0.6;
-}
 
 .card-back {
   width: var(--card-w);
   height: var(--card-h);
   border-radius: var(--card-radius);
-  background: linear-gradient(135deg, #c0392b, #8e2a1e);
-  border: 3px solid #a03020;
+  background: url('images/cardback.jpg') center/cover;
   box-shadow: var(--card-shadow);
   position: relative;
   overflow: hidden;
-}
-.card-back::after {
-  content: '✦';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 1.8rem;
-  color: rgba(255,255,255,0.2);
 }
 
 /* Hand cards */
@@ -424,8 +396,7 @@ body {
   position: absolute;
   width: 42px;
   height: 50px;
-  background: linear-gradient(135deg, #c0392b, #8e2a1e);
-  border: 1.5px solid #a03020;
+  background: url('images/cardback.jpg') center/cover;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
@@ -499,8 +470,7 @@ body {
   .room-code-display { font-size: 1.8rem; letter-spacing: 6px; }
   .center-zone { gap: 20px; min-height: 120px; }
   .game-header { flex-direction: column; gap: 6px; text-align: center; }
-  .card-center { font-size: 1.4rem; }
-  .card-center-trump { font-size: 1.2rem; }
+
   .opponent-card-back { width: 26px; height: 36px; margin: 0 -6px; }
 }
 </style>
@@ -756,6 +726,9 @@ function createGameState() {
     activeIdx: null,
     activeCard: null, // card on table waiting for response
     activeCardPlayerIdx: null, // who played the active card
+    secondCard: null, // second card of trick (for display)
+    secondCardPlayerIdx: null,
+    pendingTrick: false, // true when both cards played, awaiting resolution
     lastStarterIdx: null,
     cardsToReveal: [],
     gameOver: false
@@ -797,6 +770,9 @@ function dealGame(state) {
   state.activeIdx = state.lastStarterIdx;
   state.activeCard = null;
   state.activeCardPlayerIdx = null;
+  state.secondCard = null;
+  state.secondCardPlayerIdx = null;
+  state.pendingTrick = false;
   state.cardsToReveal = [];
   state.gameOver = false;
 
@@ -906,21 +882,45 @@ function playCard(state, card, fromStack, stackIdx, handIdx) {
     state.activeCardPlayerIdx = state.activeIdx;
     state.activeIdx = 1 - state.activeIdx;
   } else {
-    // Second card — resolve trick
-    const winnerId = compareCards(state, card, state.activeCard);
-    state.activeIdx = winnerId;
-    state.activeCard = null;
-    state.activeCardPlayerIdx = null;
-    for (const c of state.cardsToReveal) { c.faceDown = false; }
-    state.cardsToReveal = [];
+    // Second card — store both cards for display, mark as pending
+    state.secondCard = card;
+    state.secondCardPlayerIdx = state.activeIdx;
+    state.pendingTrick = true;
   }
 
-  // Check game over
+  // Check game over (deferred if pending)
+  if (!state.pendingTrick) {
+    if (nCards(state.players[0]) === 0 && nCards(state.players[1]) === 0) {
+      state.gameOver = true;
+    } else {
+      refreshPlayable(state);
+    }
+  }
+
+  return state;
+}
+
+function resolvePendingTrick(state) {
+  if (!state.pendingTrick) return state;
+
+  const winnerId = compareCards(state, state.secondCard, state.activeCard);
+  state.activeIdx = winnerId;
+  state.activeCard = null;
+  state.activeCardPlayerIdx = null;
+  state.secondCard = null;
+  state.secondCardPlayerIdx = null;
+  state.pendingTrick = false;
+  for (const c of state.cardsToReveal) { c.faceDown = false; }
+  state.cardsToReveal = [];
+
   if (nCards(state.players[0]) === 0 && nCards(state.players[1]) === 0) {
     state.gameOver = true;
   } else {
     refreshPlayable(state);
   }
+
+  return state;
+}
 
   return state;
 }
@@ -941,6 +941,9 @@ function serializeState(state, forPlayer) {
     activeIdx: state.activeIdx,
     activeCard: state.activeCard,
     activeCardPlayerIdx: state.activeCardPlayerIdx,
+    secondCard: state.secondCard || null,
+    secondCardPlayerIdx: state.secondCardPlayerIdx != null ? state.secondCardPlayerIdx : null,
+    pendingTrick: state.pendingTrick || false,
     gameOver: state.gameOver,
     myIdx: forPlayer
   }));
@@ -1021,8 +1024,14 @@ function generateCode() {
 function setConnectionStatus(state, text) {
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
+  const container = document.getElementById('connection-status');
   dot.className = 'status-dot ' + state;
   txt.textContent = text;
+  if (state === 'connected') {
+    container.classList.add('connected-state');
+  } else {
+    container.classList.remove('connected-state');
+  }
 }
 
 function createRoom() {
@@ -1129,7 +1138,7 @@ function handleMessage(data) {
     renderFromState(data.state);
   } else if (data.type === 'play') {
     // Guest sent a play action → host processes it
-    if (isHost && gameState) {
+    if (isHost && gameState && !gameState.pendingTrick) {
       const { fromStack, stackIdx, handIdx } = data;
       const p = gameState.players[1]; // Guest is always player 1
       let card;
@@ -1166,6 +1175,15 @@ function broadcastState() {
   // Render host's view
   renderFromState(serializeState(gameState, 0));
 
+  // If there's a pending trick, show both cards for 2s then resolve
+  if (gameState.pendingTrick) {
+    setTimeout(() => {
+      resolvePendingTrick(gameState);
+      broadcastState();
+    }, 2000);
+    return;
+  }
+
   // Check game over after rendering
   if (gameState.gameOver) {
     setTimeout(() => showGameOver(), 1500);
@@ -1191,6 +1209,16 @@ function startAI() {
 
 function broadcastStateAI() {
   renderFromState(serializeState(gameState, 0));
+
+  // If there's a pending trick, show both cards for 2s then resolve
+  if (gameState.pendingTrick) {
+    setTimeout(() => {
+      resolvePendingTrick(gameState);
+      broadcastStateAI();
+    }, 2000);
+    return;
+  }
+
   if (gameState.gameOver) {
     setTimeout(() => showGameOver(), 1500);
     return;
@@ -1218,32 +1246,38 @@ function showGameScreen() {
   document.getElementById('game-screen').classList.add('active');
 }
 
+function getCardImagePath(c) {
+  if (c.type === CardType.FOOL) return 'images/trumps/TN-00.jpg';
+  if (c.type === CardType.TRUMP) {
+    const val = c.value < 10 ? '0' + c.value : String(c.value);
+    return `images/trumps/TN-${val}.jpg`;
+  }
+  // Simple card
+  let val;
+  if (c.value === 1) val = 'ace';
+  else if (c.value <= 10) val = String(c.value);
+  else if (c.value === 11) val = 'jack';
+  else if (c.value === 12) val = 'knight';
+  else if (c.value === 13) val = 'queen';
+  else if (c.value === 14) val = 'king';
+  const ext = (c.value === 12) ? 'jpeg' : 'png';
+  return `images/${val}_of_${c.suit}.${ext}`;
+}
+
 function renderCardHTML(c, small) {
   if (c.hidden || c.faceDown) {
     return `<div class="card-back" ${small ? 'style="width:50px;height:72px;"' : ''}></div>`;
   }
 
-  const val = cardDisplayValue(c);
-  const suit = cardDisplaySuit(c);
   let cls = 'card';
-  if (c.type === CardType.TRUMP) cls += ' trump';
-  else if (c.type === CardType.FOOL) cls += ' fool';
-  else cls += ' ' + SUIT_COLORS[c.suit];
   if (isOudler(c)) cls += ' oudler';
 
-  let center;
-  if (c.type === CardType.TRUMP) {
-    center = `<span class="card-center-trump">${val}</span>`;
-  } else if (c.type === CardType.FOOL) {
-    center = `<span class="card-center" style="font-size:2.5rem;opacity:0.5;">🃏</span>`;
-  } else {
-    center = `<span class="card-center">${SUIT_SYMBOLS[c.suit]}</span>`;
-  }
+  const w = small ? 50 : '';
+  const h = small ? 72 : '';
+  const sizeStyle = small ? `style="width:50px;height:72px;"` : '';
 
-  return `<div class="${cls}" ${small ? 'style="width:50px;height:72px;font-size:0.65rem;"' : ''}>
-    <div class="card-top"><span>${val}</span><span>${suit}</span></div>
-    ${center}
-    <div class="card-bottom"><span>${val}</span><span>${suit}</span></div>
+  return `<div class="${cls}" ${sizeStyle}>
+    <img src="${getCardImagePath(c)}" alt="${cardDisplayValue(c)} ${cardDisplaySuit(c)}" loading="lazy">
   </div>`;
 }
 
@@ -1308,11 +1342,20 @@ function renderFromState(state) {
   slotMe.innerHTML = `<span class="label">${me.name}</span>`;
 
   if (state.activeCard) {
-    const cardHtml = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.activeCard)}</div>`;
+    const cardHtml1 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.activeCard)}</div>`;
     if (state.activeCardPlayerIdx === state.myIdx) {
-      slotMe.innerHTML += cardHtml;
+      slotMe.innerHTML += cardHtml1;
     } else {
-      slotOpp.innerHTML += cardHtml;
+      slotOpp.innerHTML += cardHtml1;
+    }
+  }
+
+  if (state.secondCard) {
+    const cardHtml2 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.secondCard)}</div>`;
+    if (state.secondCardPlayerIdx === state.myIdx) {
+      slotMe.innerHTML += cardHtml2;
+    } else {
+      slotOpp.innerHTML += cardHtml2;
     }
   }
 
@@ -1373,6 +1416,7 @@ function renderFromState(state) {
 
 /* ─── Play actions ─── */
 function onPlayHandCard(handIdx) {
+  if (gameState && gameState.pendingTrick) return; // Wait for trick to resolve
   if (isHost || isAI) {
     const p = gameState.players[myPlayerIdx];
     const card = p.hand[handIdx];
@@ -1387,6 +1431,7 @@ function onPlayHandCard(handIdx) {
 }
 
 function onPlayStackCard(stackIdx) {
+  if (gameState && gameState.pendingTrick) return; // Wait for trick to resolve
   if (isHost || isAI) {
     const p = gameState.players[myPlayerIdx];
     const stack = p.stacks[stackIdx];
