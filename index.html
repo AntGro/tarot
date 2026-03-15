@@ -192,7 +192,7 @@ body {
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
 /* ═══════════════════════ Game Layout ═══════════════════════ */
-#game-screen { display: none; flex-direction: column; min-height: 100vh; padding: 8px; }
+#game-screen { display: none; flex-direction: column; height: 100vh; padding: 8px; overflow: hidden; }
 #game-screen.active { display: flex; }
 
 .game-header {
@@ -248,12 +248,12 @@ body {
 .opponent-hand {
   display: flex;
   justify-content: center;
-  height: 50px;
+  height: 40px;
   position: relative;
 }
 .opponent-card-back {
-  width: 50px;
-  height: 72px;
+  width: 30px;
+  height: 40px;
   background: linear-gradient(135deg, #c0392b, #8e2a1e);
   border: 2px solid #a03020;
   border-radius: 4px;
@@ -322,8 +322,8 @@ body {
   height: calc(var(--card-h) + 24px);
   width: 100%;
   padding: 0 10px;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 /* ═══════════════════════ Cards ═══════════════════════ */
@@ -1315,9 +1315,30 @@ function broadcastStateAI() {
    RENDERING
    ═══════════════════════════════════════════════════════════════════ */
 
+function resizeCards() {
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+  const ratio = 1.845; // trump aspect ratio
+  // Reserve: header ~40px, opponent hand ~60px, center ~140px, stacks ~stack-h, hand ~card-h+24, gaps ~40px
+  // Available for hand cards: roughly vh * 0.22
+  const handH = Math.max(60, Math.min(160, vh * 0.22));
+  const cardH = Math.round(handH - 24);
+  const cardW = Math.round(cardH / ratio);
+  const stackH = Math.round(Math.max(50, vh * 0.15));
+  const stackW = Math.round(stackH / ratio);
+  const r = document.documentElement.style;
+  r.setProperty('--card-w', cardW + 'px');
+  r.setProperty('--card-h', cardH + 'px');
+  r.setProperty('--stack-card-w', stackW + 'px');
+  r.setProperty('--stack-card-h', stackH + 'px');
+}
+window.addEventListener('resize', resizeCards);
+resizeCards();
+
 function showGameScreen() {
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('game-screen').classList.add('active');
+  resizeCards();
 }
 
 function getCardImagePath(c) {
