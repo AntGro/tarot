@@ -14,8 +14,8 @@
   --felt-dark: #0f2b18;
   --gold: #d4af37;
   --gold-dim: #8b7023;
-  --card-w: 80px;
-  --card-h: 120px;
+  --card-w: 90px;
+  --card-h: 130px;
   --card-radius: 8px;
   --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
   --font: 'Segoe UI', system-ui, sans-serif;
@@ -250,8 +250,8 @@ body {
   position: relative;
 }
 .opponent-card-back {
-  width: 36px;
-  height: 50px;
+  width: 50px;
+  height: 72px;
   background: linear-gradient(135deg, #c0392b, #8e2a1e);
   border: 2px solid #a03020;
   border-radius: 4px;
@@ -337,7 +337,7 @@ body {
 .card img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: var(--card-radius);
   display: block;
 }
@@ -389,13 +389,13 @@ body {
 /* Small stack cards for opponent */
 .mini-stack {
   position: relative;
-  width: 50px;
-  height: 55px;
+  width: 68px;
+  height: 90px;
 }
 .mini-card-back {
   position: absolute;
-  width: 42px;
-  height: 50px;
+  width: 60px;
+  height: 84px;
   background: url('images/cardback.jpg') center/cover;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
@@ -471,7 +471,7 @@ body {
   .center-zone { gap: 20px; min-height: 120px; }
   .game-header { flex-direction: column; gap: 6px; text-align: center; }
 
-  .opponent-card-back { width: 26px; height: 36px; margin: 0 -6px; }
+  .opponent-card-back { width: 36px; height: 50px; margin: 0 -6px; }
 }
 </style>
 </head>
@@ -1319,8 +1319,8 @@ function renderFromState(state) {
         } else {
           el.innerHTML = renderCardHTML(c, true);
           el.firstChild.style.position = 'absolute';
-          el.firstChild.style.width = '42px';
-          el.firstChild.style.height = '50px';
+          el.firstChild.style.width = '60px';
+          el.firstChild.style.height = '84px';
         }
         el.style.top = (i * 2) + 'px';
         el.style.left = (i * 1) + 'px';
