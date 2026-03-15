@@ -248,12 +248,13 @@ body {
 .opponent-hand {
   display: flex;
   justify-content: center;
-  height: 40px;
+  height: calc(var(--card-h) * 0.3);
   position: relative;
+  overflow: hidden;
 }
 .opponent-card-back {
-  width: 30px;
-  height: 40px;
+  width: calc(var(--card-w) * 0.4);
+  height: calc(var(--card-h) * 0.3);
   background: linear-gradient(135deg, #c0392b, #8e2a1e);
   border: 2px solid #a03020;
   border-radius: 4px;
@@ -369,7 +370,9 @@ body {
 }
 .hand-card.playable { cursor: pointer; }
 .hand-card.playable:hover {
-  transform: var(--fan-transform) translateY(-20px) !important;
+  transform: translateY(-20px) !important;
+  z-index: 100 !important;
+}
   z-index: 100 !important;
   box-shadow: 0 0 0 2px var(--success), 0 8px 24px rgba(0,0,0,0.5);
 }
@@ -507,13 +510,12 @@ body {
   .room-code-display { font-size: 1.8rem; letter-spacing: 6px; }
   .center-zone { gap: 16px; min-height: 0; }
   .game-header { flex-direction: column; gap: 6px; text-align: center; }
-  .opponent-card-back { width: 36px; height: 66px; margin: 0 -6px; }
 }
 
 /* Ultra-narrow: text-only cards (triggered by JS text-mode class) */
 .text-mode .card img, .text-mode .mini-card-back, .text-mode .card-back { display: none !important; }
 .text-mode .card .card-text-fallback, .text-mode .mini-stack .card-text-fallback { display: flex !important; }
-.text-mode .opponent-card-back { width: 28px; height: 40px; }
+.text-mode .opponent-card-back { width: 20px; height: 30px; }
 
 /* Text fallback for cards (hidden by default, shown in text-mode) */
 .card-text-fallback {
@@ -1544,7 +1546,7 @@ function renderFromState(state) {
     playerStacksDiv.appendChild(sc);
   });
 
-  // Player hand (fan)
+  // Player hand (flat row with overlap)
   const handDiv = document.getElementById('player-hand');
   handDiv.innerHTML = '';
   const handCards = me.hand;
@@ -1552,26 +1554,21 @@ function renderFromState(state) {
   if (n > 0) {
     const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
     const availWidth = window.innerWidth - 20;
-    // Ensure all cards fit: overlap so each card takes ~55% of card width
-    const maxSpread = Math.min(availWidth - cardW, n * cardW * 0.55);
-    const step = n > 1 ? maxSpread / (n - 1) : 0;
-    const startX = -maxSpread / 2;
-    const maxAngle = Math.min(n * 1.5, 20);
+    // Each card shows at least 30% — up to 70% overlap
+    const minVisible = cardW * 0.30;
+    const idealStep = cardW * 0.35; // 65% overlap by default
+    const step = n > 1 ? Math.max(minVisible, Math.min(idealStep, (availWidth - cardW) / (n - 1))) : 0;
+    const totalWidth = cardW + (n - 1) * step;
+    const startX = (availWidth - totalWidth) / 2;
 
     handCards.forEach((c, i) => {
       const wrapper = document.createElement('div');
-      const offset = startX + i * step;
-      const angleStep = n > 1 ? (2 * maxAngle) / (n - 1) : 0;
-      const angle = -maxAngle + i * angleStep;
-      const lift = -Math.abs(angle) * 0.5;
-
       wrapper.className = 'hand-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
       wrapper.style.cssText = `
-        --fan-transform: translateX(${offset}px) rotate(${angle}deg) translateY(${lift}px);
-        transform: var(--fan-transform);
+        position: absolute;
+        left: ${startX + i * step}px;
+        top: 0;
         z-index: ${i};
-        left: 50%;
-        margin-left: ${-40}px;
       `;
       wrapper.innerHTML = renderCardHTML(c);
       if (c.playable && isMyTurn && !state.gameOver) {
