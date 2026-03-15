@@ -1,1 +1,5 @@
-*__perso__*
+# Only allow project files
+*
+!index.html
+!README.md
+!.gitignore
