@@ -510,15 +510,12 @@ body {
   .opponent-card-back { width: 36px; height: 66px; margin: 0 -6px; }
 }
 
-/* Ultra-narrow: text-only cards */
-@media (max-width: 400px) {
-  :root { --card-w: 38px; --card-h: 54px; --card-radius: 4px; --stack-card-w: 32px; --stack-card-h: 46px; }
-  .card img, .mini-card-back, .card-back { display: none !important; }
-  .card .card-text-fallback, .mini-stack .card-text-fallback { display: flex !important; }
-  .opponent-card-back { width: 28px; height: 40px; }
-}
+/* Ultra-narrow: text-only cards (triggered by JS text-mode class) */
+.text-mode .card img, .text-mode .mini-card-back, .text-mode .card-back { display: none !important; }
+.text-mode .card .card-text-fallback, .text-mode .mini-stack .card-text-fallback { display: flex !important; }
+.text-mode .opponent-card-back { width: 28px; height: 40px; }
 
-/* Text fallback for cards (hidden by default, shown on ultra-narrow) */
+/* Text fallback for cards (hidden by default, shown in text-mode) */
 .card-text-fallback {
   display: none;
   width: 100%;
@@ -526,11 +523,14 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 0.7rem;
+  font-size: calc(var(--card-w) * 0.4);
   text-align: center;
   line-height: 1.1;
   border-radius: var(--card-radius);
   border: 2px solid rgba(255,255,255,0.3);
+}
+.mini-stack .card-text-fallback {
+  font-size: calc(var(--stack-card-w) * 0.4);
 }
 .card-text-fallback.suit-hearts, .card-text-fallback.suit-diamonds { color: #e74c3c; background: #1a0a0a; }
 .card-text-fallback.suit-spades, .card-text-fallback.suit-clubs { color: #ecf0f1; background: #1a1a1a; }
@@ -1325,18 +1325,39 @@ function resizeCards() {
   const vh = window.innerHeight;
   const vw = window.innerWidth;
   const ratio = 1.845; // trump aspect ratio
-  // Reserve: header ~40px, opponent hand ~60px, center ~140px, stacks ~stack-h, hand ~card-h+24, gaps ~40px
-  // Available for hand cards: roughly vh * 0.22
+  const maxHandCards = 11; // max cards in hand
+  const textModeThreshold = 50; // px — below this, switch to text mode
+
+  // Height-based sizing (fit vertically)
   const handH = Math.max(60, Math.min(160, vh * 0.22));
-  const cardH = Math.round(handH - 24);
-  const cardW = Math.round(cardH / ratio);
-  const stackH = Math.round(Math.max(50, vh * 0.15));
+  let cardH = Math.round(handH - 24);
+  let cardW = Math.round(cardH / ratio);
+
+  // Width-based constraint: all hand cards must fit in one row
+  // Cards overlap ~40%, so effective width per card ≈ cardW * 0.6
+  const availW = vw - 40; // padding
+  const maxCardW = Math.floor(availW / (maxHandCards * 0.55));
+  if (cardW > maxCardW) {
+    cardW = maxCardW;
+    cardH = Math.round(cardW * ratio);
+  }
+
+  // Stack cards: slightly smaller than hand cards
+  const stackH = Math.round(Math.min(cardH * 0.85, Math.max(50, vh * 0.15)));
   const stackW = Math.round(stackH / ratio);
+
   const r = document.documentElement.style;
   r.setProperty('--card-w', cardW + 'px');
   r.setProperty('--card-h', cardH + 'px');
   r.setProperty('--stack-card-w', stackW + 'px');
   r.setProperty('--stack-card-h', stackH + 'px');
+
+  // Toggle text mode when cards are too small for images
+  if (cardW < textModeThreshold) {
+    document.documentElement.classList.add('text-mode');
+  } else {
+    document.documentElement.classList.remove('text-mode');
+  }
 }
 window.addEventListener('resize', resizeCards);
 resizeCards();
@@ -1529,11 +1550,13 @@ function renderFromState(state) {
   const handCards = me.hand;
   const n = handCards.length;
   if (n > 0) {
-    const availWidth = handDiv.clientWidth || window.innerWidth - 20;
-    const maxSpread = Math.min(n * 52, availWidth - 40);
+    const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
+    const availWidth = window.innerWidth - 20;
+    // Ensure all cards fit: overlap so each card takes ~55% of card width
+    const maxSpread = Math.min(availWidth - cardW, n * cardW * 0.55);
     const step = n > 1 ? maxSpread / (n - 1) : 0;
     const startX = -maxSpread / 2;
-    const maxAngle = Math.min(n * 2, 25);
+    const maxAngle = Math.min(n * 1.5, 20);
 
     handCards.forEach((c, i) => {
       const wrapper = document.createElement('div');
