@@ -18,8 +18,8 @@
   --card-h: 148px;
   --card-radius: 8px;
   --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  --stack-card-w: 60px;
-  --stack-card-h: 111px;
+  --stack-card-w: 70px;
+  --stack-card-h: 129px;
   --font: 'Segoe UI', system-ui, sans-serif;
   --text: #e8e0d0;
   --text-dim: #a09880;
@@ -321,7 +321,9 @@ body {
   position: relative;
   height: calc(var(--card-h) + 24px);
   width: 100%;
-  padding: 0 20px;
+  padding: 0 10px;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 /* ═══════════════════════ Cards ═══════════════════════ */
@@ -371,8 +373,8 @@ body {
 /* Stack cards */
 .stack-container {
   position: relative;
-  width: calc(var(--card-w) + 8px);
-  height: 90px;
+  width: calc(var(--stack-card-w) + 8px);
+  height: calc(var(--stack-card-h) + 20px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -380,6 +382,14 @@ body {
 .stack-card {
   position: absolute;
   transition: transform 0.2s ease;
+}
+.stack-card .card {
+  width: var(--stack-card-w);
+  height: var(--stack-card-h);
+}
+.stack-card .card-back {
+  width: var(--stack-card-w);
+  height: var(--stack-card-h);
 }
 .stack-card.playable { cursor: pointer; }
 .stack-card.playable:hover {
@@ -466,7 +476,7 @@ body {
 
 /* ═══════════════════════ Responsive ═══════════════════════ */
 @media (max-width: 600px) {
-  :root { --card-w: 56px; --card-h: 103px; --card-radius: 5px; --stack-card-w: 44px; --stack-card-h: 81px; }
+  :root { --card-w: 56px; --card-h: 103px; --card-radius: 5px; --stack-card-w: 50px; --stack-card-h: 92px; }
   .lobby-title { font-size: 2rem; }
   .lobby-panel { min-width: unset; padding: 20px; }
   .room-code-display { font-size: 1.8rem; letter-spacing: 6px; }
@@ -1431,7 +1441,8 @@ function renderFromState(state) {
   const handCards = me.hand;
   const n = handCards.length;
   if (n > 0) {
-    const maxSpread = Math.min(n * 52, handDiv.clientWidth - 100 || 600);
+    const availWidth = handDiv.clientWidth || window.innerWidth - 20;
+    const maxSpread = Math.min(n * 52, availWidth - 40);
     const step = n > 1 ? maxSpread / (n - 1) : 0;
     const startX = -maxSpread / 2;
     const maxAngle = Math.min(n * 2, 25);
