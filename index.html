@@ -537,8 +537,9 @@ body {
 .card-text-fallback.suit-trump { color: #f1c40f; background: #1a1a0a; }
 .card-text-fallback.suit-fool { color: #9b59b6; background: #1a0a1a; }
 
-/* Card label overlay — always visible on small cards */
+/* Card label overlay — hidden by default, shown on ultra-narrow */
 .card-label {
+  display: none;
   position: absolute;
   top: 2px;
   left: 2px;
