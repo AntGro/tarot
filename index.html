@@ -972,7 +972,7 @@ function playCard(state, card, fromStack, stackIdx, handIdx) {
     // Reveal next card if any
     if (player.stacks[stackIdx].length > 0) {
       const revealed = player.stacks[stackIdx][player.stacks[stackIdx].length - 1];
-      revealed.faceDown = false;
+      // Don't reveal yet — defer until trick resolves (so opponent can't see it)
       insertSorted(player.sorted, revealed);
       state.cardsToReveal.push(revealed);
     }
