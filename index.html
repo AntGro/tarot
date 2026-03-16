@@ -1282,9 +1282,24 @@ function startGame() {
 }
 
 function broadcastState() {
-  // If there's a pending trick, resolve immediately (no timer)
+  // If there's a pending trick, show both cards first, then resolve after delay
   if (gameState.pendingTrick) {
-    resolvePendingTrick(gameState);
+    // Send state with both cards visible
+    if (conn && conn.open) {
+      conn.send({ type: 'game-state', state: serializeState(gameState, 1) });
+    }
+    renderFromState(serializeState(gameState, 0));
+    setTimeout(() => {
+      resolvePendingTrick(gameState);
+      if (conn && conn.open) {
+        conn.send({ type: 'game-state', state: serializeState(gameState, 1) });
+      }
+      renderFromState(serializeState(gameState, 0));
+      if (gameState.gameOver) {
+        setTimeout(() => showGameOver(), 1500);
+      }
+    }, 1500);
+    return;
   }
 
   // Send personalized state to guest
@@ -1318,9 +1333,29 @@ function startAI() {
 }
 
 function broadcastStateAI() {
-  // If there's a pending trick, resolve immediately (no timer)
+  // If there's a pending trick, show both cards first, then resolve after delay
   if (gameState.pendingTrick) {
-    resolvePendingTrick(gameState);
+    renderFromState(serializeState(gameState, 0));
+    setTimeout(() => {
+      resolvePendingTrick(gameState);
+      renderFromState(serializeState(gameState, 0));
+      if (gameState.gameOver) {
+        setTimeout(() => showGameOver(), 1500);
+        return;
+      }
+      // If AI's turn after resolution, play after delay
+      if (gameState.activeIdx === 1) {
+        setTimeout(() => {
+          if (gameState.gameOver) return;
+          const choice = aiPickCard(gameState);
+          if (choice) {
+            playCard(gameState, choice.card, choice.fromStack, choice.stackIdx, choice.handIdx);
+            broadcastStateAI();
+          }
+        }, 600 + Math.random() * 400);
+      }
+    }, 1500);
+    return;
   }
 
   renderFromState(serializeState(gameState, 0));
@@ -1499,47 +1534,52 @@ function renderFromState(state) {
     }
   }
 
-  // Opponent stacks — diff by stack signature
+  // Opponent stacks — per-stack diffing
   const oppStacksDiv = document.getElementById('opponent-stacks');
   if (opp.stacks) {
-    const newSig = opp.stacks.map(s => s.length + ':' + (s.length > 0 ? (s[s.length-1].hidden ? 'h' : cardId(s[s.length-1])) : 'e')).join('|');
-    if (oppStacksDiv.getAttribute('data-sig') !== newSig) {
-      oppStacksDiv.setAttribute('data-sig', newSig);
-      oppStacksDiv.innerHTML = '';
-      opp.stacks.forEach(stack => {
-        if (stack.length === 0) {
-          const empty = document.createElement('div');
-          empty.className = 'mini-stack empty-stack';
-          oppStacksDiv.appendChild(empty);
-          return;
-        }
-        const ms = document.createElement('div');
-        ms.className = 'mini-stack';
-        stack.forEach((c, i) => {
-          const el = document.createElement('div');
-          if (c.faceDown || c.hidden) {
-            el.className = 'mini-card-back';
-          } else {
-            el.innerHTML = renderCardHTML(c, true);
-            const cs = getComputedStyle(document.documentElement);
-            el.firstChild.style.position = 'absolute';
-            el.firstChild.style.width = cs.getPropertyValue('--stack-card-w');
-            el.firstChild.style.height = cs.getPropertyValue('--stack-card-h');
-          }
-          el.style.top = (i * 2) + 'px';
-          el.style.left = (i * 1) + 'px';
-          el.style.position = 'absolute';
-          ms.appendChild(el);
-        });
-        if (stack.length > 1) {
-          const badge = document.createElement('span');
-          badge.className = 'stack-count';
-          badge.textContent = stack.length - 1;
-          ms.appendChild(badge);
-        }
-        oppStacksDiv.appendChild(ms);
-      });
+    // Ensure we have 7 persistent mini-stack containers
+    while (oppStacksDiv.children.length < opp.stacks.length) {
+      const ms = document.createElement('div');
+      ms.className = 'mini-stack';
+      oppStacksDiv.appendChild(ms);
     }
+    while (oppStacksDiv.children.length > opp.stacks.length) {
+      oppStacksDiv.removeChild(oppStacksDiv.lastChild);
+    }
+    opp.stacks.forEach((stack, si) => {
+      const ms = oppStacksDiv.children[si];
+      const newSig = stack.length + ':' + (stack.length > 0 ? (stack[stack.length-1].hidden ? 'h' : (stack[stack.length-1].faceDown ? 'fd' : cardId(stack[stack.length-1]))) : 'e');
+      if (ms.getAttribute('data-sig') === newSig) return; // skip unchanged stack
+      ms.setAttribute('data-sig', newSig);
+      ms.innerHTML = '';
+      if (stack.length === 0) {
+        ms.className = 'mini-stack empty-stack';
+        return;
+      }
+      ms.className = 'mini-stack';
+      stack.forEach((c, i) => {
+        const el = document.createElement('div');
+        if (c.faceDown || c.hidden) {
+          el.className = 'mini-card-back';
+        } else {
+          el.innerHTML = renderCardHTML(c, true);
+          const cs = getComputedStyle(document.documentElement);
+          el.firstChild.style.position = 'absolute';
+          el.firstChild.style.width = cs.getPropertyValue('--stack-card-w');
+          el.firstChild.style.height = cs.getPropertyValue('--stack-card-h');
+        }
+        el.style.top = (i * 2) + 'px';
+        el.style.left = (i * 1) + 'px';
+        el.style.position = 'absolute';
+        ms.appendChild(el);
+      });
+      if (stack.length > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'stack-count';
+        badge.textContent = stack.length - 1;
+        ms.appendChild(badge);
+      }
+    });
   }
 
   // Center played cards — diff by card signature
@@ -1587,41 +1627,64 @@ function renderFromState(state) {
     }
   }
 
-  // Player stacks — diff by stack signature
+  // Player stacks — per-stack diffing with playable-class-only updates
   const playerStacksDiv = document.getElementById('player-stacks');
-  const pStackSig = me.stacks.map((s, si) => s.length + ':' + (s.length > 0 ? cardId(s[s.length-1]) + (s[s.length-1].playable && isMyTurn ? 'P' : 'N') : 'e')).join('|');
-  if (playerStacksDiv.getAttribute('data-sig') !== pStackSig) {
-    playerStacksDiv.setAttribute('data-sig', pStackSig);
-    playerStacksDiv.innerHTML = '';
-    me.stacks.forEach((stack, si) => {
-      if (stack.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'stack-container empty-stack';
-        playerStacksDiv.appendChild(empty);
-        return;
-      }
-      const sc = document.createElement('div');
-      sc.className = 'stack-container';
-      stack.forEach((c, ci) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
-        wrapper.style.bottom = (ci * 3) + 'px';
-        wrapper.style.zIndex = ci;
-        wrapper.innerHTML = renderCardHTML(c);
-        if (c.playable && isMyTurn && !state.gameOver) {
-          wrapper.onclick = () => onPlayStackCard(si);
-        }
-        sc.appendChild(wrapper);
-      });
-      if (stack.length > 1) {
-        const badge = document.createElement('span');
-        badge.className = 'stack-count';
-        badge.textContent = stack.length - 1;
-        sc.appendChild(badge);
-      }
-      playerStacksDiv.appendChild(sc);
-    });
+  // Ensure persistent containers for all 7 stacks
+  while (playerStacksDiv.children.length < me.stacks.length) {
+    const sc = document.createElement('div');
+    sc.className = 'stack-container';
+    playerStacksDiv.appendChild(sc);
   }
+  while (playerStacksDiv.children.length > me.stacks.length) {
+    playerStacksDiv.removeChild(playerStacksDiv.lastChild);
+  }
+  me.stacks.forEach((stack, si) => {
+    const sc = playerStacksDiv.children[si];
+    // Structural signature: card identities + face-down state
+    const structSig = stack.length + ':' + stack.map((c, ci) => c.faceDown ? 'fd' : cardId(c)).join(',');
+    const prevStructSig = sc.getAttribute('data-struct') || '';
+    if (prevStructSig !== structSig) {
+      // Full rebuild of this stack
+      sc.setAttribute('data-struct', structSig);
+      sc.innerHTML = '';
+      if (stack.length === 0) {
+        sc.className = 'stack-container empty-stack';
+      } else {
+        sc.className = 'stack-container';
+        stack.forEach((c, ci) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
+          wrapper.setAttribute('data-ci', ci);
+          wrapper.style.bottom = (ci * 3) + 'px';
+          wrapper.style.zIndex = ci;
+          wrapper.innerHTML = renderCardHTML(c);
+          if (c.playable && isMyTurn && !state.gameOver) {
+            wrapper.onclick = () => onPlayStackCard(si);
+          }
+          sc.appendChild(wrapper);
+        });
+        if (stack.length > 1) {
+          const badge = document.createElement('span');
+          badge.className = 'stack-count';
+          badge.textContent = stack.length - 1;
+          sc.appendChild(badge);
+        }
+      }
+    } else {
+      // Structure unchanged — only update playable classes and click handlers
+      stack.forEach((c, ci) => {
+        const wrapper = sc.querySelector(`[data-ci="${ci}"]`);
+        if (wrapper) {
+          const newClass = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
+          if (wrapper.className !== newClass) wrapper.className = newClass;
+          wrapper.onclick = null;
+          if (c.playable && isMyTurn && !state.gameOver) {
+            wrapper.onclick = () => onPlayStackCard(si);
+          }
+        }
+      });
+    }
+  });
 
   // Player hand (flat row with overlap, DOM diffing to prevent flicker)
   const handDiv = document.getElementById('player-hand');
@@ -1650,7 +1713,10 @@ function renderFromState(state) {
     handCards.forEach((c, i) => {
       const cid = cardId(c);
       let wrapper = handDiv.querySelector(`.hand-card[data-card-id="${cid}"]`);
-      const playableClass = c.playable && isMyTurn ? ' playable' : ' not-playable';
+      const isPlayable = c.playable && isMyTurn;
+      const playableClass = isPlayable ? ' playable' : ' not-playable';
+      const targetClass = 'hand-card' + playableClass;
+      const targetLeft = Math.round(startX + i * step) + 'px';
 
       if (!wrapper) {
         // Create new card element
@@ -1660,16 +1726,15 @@ function renderFromState(state) {
         handDiv.appendChild(wrapper);
       }
 
-      wrapper.className = 'hand-card' + playableClass;
-      wrapper.style.cssText = `
-        position: absolute;
-        left: ${startX + i * step}px;
-        top: 0;
-        z-index: ${i};
-      `;
+      // Only touch DOM if values actually changed
+      if (wrapper.className !== targetClass) wrapper.className = targetClass;
+      if (wrapper.style.left !== targetLeft) wrapper.style.left = targetLeft;
+      if (wrapper.style.zIndex !== String(i)) wrapper.style.zIndex = i;
+      if (wrapper.style.position !== 'absolute') wrapper.style.position = 'absolute';
+      if (wrapper.style.top !== '0px') wrapper.style.top = '0px';
 
       wrapper.onclick = null;
-      if (c.playable && isMyTurn && !state.gameOver) {
+      if (isPlayable && !state.gameOver) {
         wrapper.onclick = () => onPlayHandCard(i);
       }
     });
@@ -1680,6 +1745,7 @@ function renderFromState(state) {
 
 /* ─── Play actions ─── */
 function onPlayHandCard(handIdx) {
+  if (gameState && gameState.pendingTrick) return;
   if (isHost || isAI) {
     const p = gameState.players[myPlayerIdx];
     const card = p.hand[handIdx];
@@ -1694,6 +1760,7 @@ function onPlayHandCard(handIdx) {
 }
 
 function onPlayStackCard(stackIdx) {
+  if (gameState && gameState.pendingTrick) return;
   if (isHost || isAI) {
     const p = gameState.players[myPlayerIdx];
     const stack = p.stacks[stackIdx];
