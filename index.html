@@ -301,7 +301,14 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  animation: playCard 0.3s ease-out;
+}
+.card-played {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.4s ease;
 }
 @keyframes playCard {
   from { transform: translateY(30px) scale(0.8); opacity: 0; }
@@ -1582,50 +1589,68 @@ function renderFromState(state) {
     });
   }
 
-  // Center played cards — diff by card signature
+  // Center played cards — per-slot incremental updates
   const slotOpp = document.getElementById('slot-opponent');
   const slotMe = document.getElementById('slot-player');
-  const centerSig = [
-    state.activeCard ? cardId(state.activeCard) + '@' + state.activeCardPlayerIdx : '',
-    state.secondCard ? cardId(state.secondCard) + '@' + state.secondCardPlayerIdx : '',
-    state.lastTrickCards ? state.lastTrickCards.map(tc => cardId(tc.card)).join(',') : ''
-  ].join('|');
-  const prevCenterSig = slotMe.getAttribute('data-sig') || '';
-  if (prevCenterSig !== centerSig) {
-    slotMe.setAttribute('data-sig', centerSig);
-    slotOpp.innerHTML = `<span class="label">${opp.name}</span>`;
-    slotMe.innerHTML = `<span class="label">${me.name}</span>`;
 
-    if (state.activeCard) {
-      const cardHtml1 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.activeCard)}</div>`;
-      if (state.activeCardPlayerIdx === state.myIdx) {
-        slotMe.innerHTML += cardHtml1;
-      } else {
-        slotOpp.innerHTML += cardHtml1;
-      }
-    }
+  // Determine what card should be in each slot
+  let mySlotCard = null, mySlotOpacity = 1;
+  let oppSlotCard = null, oppSlotOpacity = 1;
 
-    if (state.secondCard) {
-      const cardHtml2 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.secondCard)}</div>`;
-      if (state.secondCardPlayerIdx === state.myIdx) {
-        slotMe.innerHTML += cardHtml2;
-      } else {
-        slotOpp.innerHTML += cardHtml2;
-      }
-    }
-
-    // Show last trick cards if no active card is being played
-    if (!state.activeCard && !state.secondCard && state.lastTrickCards) {
-      state.lastTrickCards.forEach(tc => {
-        const cardHtml = `<div class="card-played" style="opacity:0.7;">${renderCardHTML(tc.card)}</div>`;
-        if (tc.playerIdx === state.myIdx) {
-          slotMe.innerHTML += cardHtml;
-        } else {
-          slotOpp.innerHTML += cardHtml;
-        }
-      });
+  if (state.activeCard) {
+    if (state.activeCardPlayerIdx === state.myIdx) {
+      mySlotCard = state.activeCard;
+    } else {
+      oppSlotCard = state.activeCard;
     }
   }
+  if (state.secondCard) {
+    if (state.secondCardPlayerIdx === state.myIdx) {
+      mySlotCard = state.secondCard;
+    } else {
+      oppSlotCard = state.secondCard;
+    }
+  }
+  // Show last trick cards when no active/second card
+  if (!state.activeCard && !state.secondCard && state.lastTrickCards) {
+    state.lastTrickCards.forEach(tc => {
+      if (tc.playerIdx === state.myIdx) { mySlotCard = tc.card; mySlotOpacity = 0.5; }
+      else { oppSlotCard = tc.card; oppSlotOpacity = 0.5; }
+    });
+  }
+
+  // Update each slot independently
+  function updateSlot(slot, card, opacity, labelName) {
+    const cardDiv = slot.querySelector('.card-played');
+    const newCardId = card ? cardId(card) : '';
+    const prevCardId = slot.getAttribute('data-card') || '';
+
+    if (newCardId === prevCardId) {
+      // Same card — only update opacity if needed
+      if (cardDiv) {
+        const targetOp = String(opacity);
+        if (cardDiv.style.opacity !== targetOp) cardDiv.style.opacity = targetOp;
+      }
+      return;
+    }
+
+    // Card changed
+    slot.setAttribute('data-card', newCardId);
+    // Remove old card if any
+    if (cardDiv) cardDiv.remove();
+
+    if (card) {
+      const el = document.createElement('div');
+      el.className = 'card-played';
+      el.style.opacity = opacity;
+      el.style.animation = opacity === 1 ? 'playCard 0.3s ease-out' : 'none';
+      el.innerHTML = renderCardHTML(card);
+      slot.appendChild(el);
+    }
+  }
+
+  updateSlot(slotMe, mySlotCard, mySlotOpacity, me.name);
+  updateSlot(slotOpp, oppSlotCard, oppSlotOpacity, opp.name);
 
   // Player stacks — per-stack diffing with playable-class-only updates
   const playerStacksDiv = document.getElementById('player-stacks');
