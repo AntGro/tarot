@@ -1485,123 +1485,143 @@ function renderFromState(state) {
   const turnText = state.gameOver ? 'Terminé' : (isMyTurn ? 'Votre tour' : 'Tour adverse');
   document.getElementById('turn-indicator').textContent = turnText;
 
-  // Opponent hand (face down)
+  // Opponent hand (face down) — diff by count
   const oppHandDiv = document.getElementById('opponent-hand');
-  oppHandDiv.innerHTML = '';
-  for (let i = 0; i < (opp.hand ? opp.hand.length : 0); i++) {
-    const el = document.createElement('div');
-    el.className = 'opponent-card-back';
-    el.style.marginLeft = i > 0 ? '-8px' : '0';
-    oppHandDiv.appendChild(el);
+  const oppHandCount = opp.hand ? opp.hand.length : 0;
+  const currentOppCards = oppHandDiv.children.length;
+  if (currentOppCards !== oppHandCount) {
+    oppHandDiv.innerHTML = '';
+    for (let i = 0; i < oppHandCount; i++) {
+      const el = document.createElement('div');
+      el.className = 'opponent-card-back';
+      el.style.marginLeft = i > 0 ? '-8px' : '0';
+      oppHandDiv.appendChild(el);
+    }
   }
 
-  // Opponent stacks
+  // Opponent stacks — diff by stack signature
   const oppStacksDiv = document.getElementById('opponent-stacks');
-  oppStacksDiv.innerHTML = '';
   if (opp.stacks) {
-    opp.stacks.forEach(stack => {
+    const newSig = opp.stacks.map(s => s.length + ':' + (s.length > 0 ? (s[s.length-1].hidden ? 'h' : cardId(s[s.length-1])) : 'e')).join('|');
+    if (oppStacksDiv.getAttribute('data-sig') !== newSig) {
+      oppStacksDiv.setAttribute('data-sig', newSig);
+      oppStacksDiv.innerHTML = '';
+      opp.stacks.forEach(stack => {
+        if (stack.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'mini-stack empty-stack';
+          oppStacksDiv.appendChild(empty);
+          return;
+        }
+        const ms = document.createElement('div');
+        ms.className = 'mini-stack';
+        stack.forEach((c, i) => {
+          const el = document.createElement('div');
+          if (c.faceDown || c.hidden) {
+            el.className = 'mini-card-back';
+          } else {
+            el.innerHTML = renderCardHTML(c, true);
+            const cs = getComputedStyle(document.documentElement);
+            el.firstChild.style.position = 'absolute';
+            el.firstChild.style.width = cs.getPropertyValue('--stack-card-w');
+            el.firstChild.style.height = cs.getPropertyValue('--stack-card-h');
+          }
+          el.style.top = (i * 2) + 'px';
+          el.style.left = (i * 1) + 'px';
+          el.style.position = 'absolute';
+          ms.appendChild(el);
+        });
+        if (stack.length > 1) {
+          const badge = document.createElement('span');
+          badge.className = 'stack-count';
+          badge.textContent = stack.length - 1;
+          ms.appendChild(badge);
+        }
+        oppStacksDiv.appendChild(ms);
+      });
+    }
+  }
+
+  // Center played cards — diff by card signature
+  const slotOpp = document.getElementById('slot-opponent');
+  const slotMe = document.getElementById('slot-player');
+  const centerSig = [
+    state.activeCard ? cardId(state.activeCard) + '@' + state.activeCardPlayerIdx : '',
+    state.secondCard ? cardId(state.secondCard) + '@' + state.secondCardPlayerIdx : '',
+    state.lastTrickCards ? state.lastTrickCards.map(tc => cardId(tc.card)).join(',') : ''
+  ].join('|');
+  const prevCenterSig = slotMe.getAttribute('data-sig') || '';
+  if (prevCenterSig !== centerSig) {
+    slotMe.setAttribute('data-sig', centerSig);
+    slotOpp.innerHTML = `<span class="label">${opp.name}</span>`;
+    slotMe.innerHTML = `<span class="label">${me.name}</span>`;
+
+    if (state.activeCard) {
+      const cardHtml1 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.activeCard)}</div>`;
+      if (state.activeCardPlayerIdx === state.myIdx) {
+        slotMe.innerHTML += cardHtml1;
+      } else {
+        slotOpp.innerHTML += cardHtml1;
+      }
+    }
+
+    if (state.secondCard) {
+      const cardHtml2 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.secondCard)}</div>`;
+      if (state.secondCardPlayerIdx === state.myIdx) {
+        slotMe.innerHTML += cardHtml2;
+      } else {
+        slotOpp.innerHTML += cardHtml2;
+      }
+    }
+
+    // Show last trick cards if no active card is being played
+    if (!state.activeCard && !state.secondCard && state.lastTrickCards) {
+      state.lastTrickCards.forEach(tc => {
+        const cardHtml = `<div class="card-played" style="opacity:0.7;">${renderCardHTML(tc.card)}</div>`;
+        if (tc.playerIdx === state.myIdx) {
+          slotMe.innerHTML += cardHtml;
+        } else {
+          slotOpp.innerHTML += cardHtml;
+        }
+      });
+    }
+  }
+
+  // Player stacks — diff by stack signature
+  const playerStacksDiv = document.getElementById('player-stacks');
+  const pStackSig = me.stacks.map((s, si) => s.length + ':' + (s.length > 0 ? cardId(s[s.length-1]) + (s[s.length-1].playable && isMyTurn ? 'P' : 'N') : 'e')).join('|');
+  if (playerStacksDiv.getAttribute('data-sig') !== pStackSig) {
+    playerStacksDiv.setAttribute('data-sig', pStackSig);
+    playerStacksDiv.innerHTML = '';
+    me.stacks.forEach((stack, si) => {
       if (stack.length === 0) {
         const empty = document.createElement('div');
-        empty.className = 'mini-stack empty-stack';
-        oppStacksDiv.appendChild(empty);
+        empty.className = 'stack-container empty-stack';
+        playerStacksDiv.appendChild(empty);
         return;
       }
-      const ms = document.createElement('div');
-      ms.className = 'mini-stack';
-      stack.forEach((c, i) => {
-        const el = document.createElement('div');
-        if (c.faceDown || c.hidden) {
-          el.className = 'mini-card-back';
-        } else {
-          el.innerHTML = renderCardHTML(c, true);
-          const cs = getComputedStyle(document.documentElement);
-          el.firstChild.style.position = 'absolute';
-          el.firstChild.style.width = cs.getPropertyValue('--stack-card-w');
-          el.firstChild.style.height = cs.getPropertyValue('--stack-card-h');
+      const sc = document.createElement('div');
+      sc.className = 'stack-container';
+      stack.forEach((c, ci) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
+        wrapper.style.bottom = (ci * 3) + 'px';
+        wrapper.style.zIndex = ci;
+        wrapper.innerHTML = renderCardHTML(c);
+        if (c.playable && isMyTurn && !state.gameOver) {
+          wrapper.onclick = () => onPlayStackCard(si);
         }
-        el.style.top = (i * 2) + 'px';
-        el.style.left = (i * 1) + 'px';
-        el.style.position = 'absolute';
-        ms.appendChild(el);
+        sc.appendChild(wrapper);
       });
       if (stack.length > 1) {
         const badge = document.createElement('span');
         badge.className = 'stack-count';
         badge.textContent = stack.length - 1;
-        ms.appendChild(badge);
+        sc.appendChild(badge);
       }
-      oppStacksDiv.appendChild(ms);
+      playerStacksDiv.appendChild(sc);
     });
   }
-
-  // Center played cards
-  const slotOpp = document.getElementById('slot-opponent');
-  const slotMe = document.getElementById('slot-player');
-  // Keep labels
-  slotOpp.innerHTML = `<span class="label">${opp.name}</span>`;
-  slotMe.innerHTML = `<span class="label">${me.name}</span>`;
-
-  if (state.activeCard) {
-    const cardHtml1 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.activeCard)}</div>`;
-    if (state.activeCardPlayerIdx === state.myIdx) {
-      slotMe.innerHTML += cardHtml1;
-    } else {
-      slotOpp.innerHTML += cardHtml1;
-    }
-  }
-
-  if (state.secondCard) {
-    const cardHtml2 = `<div class="card-played" style="animation:playCard 0.3s ease-out;">${renderCardHTML(state.secondCard)}</div>`;
-    if (state.secondCardPlayerIdx === state.myIdx) {
-      slotMe.innerHTML += cardHtml2;
-    } else {
-      slotOpp.innerHTML += cardHtml2;
-    }
-  }
-
-  // Show last trick cards if no active card is being played
-  if (!state.activeCard && !state.secondCard && state.lastTrickCards) {
-    state.lastTrickCards.forEach(tc => {
-      const cardHtml = `<div class="card-played" style="opacity:0.7;">${renderCardHTML(tc.card)}</div>`;
-      if (tc.playerIdx === state.myIdx) {
-        slotMe.innerHTML += cardHtml;
-      } else {
-        slotOpp.innerHTML += cardHtml;
-      }
-    });
-  }
-
-  // Player stacks
-  const playerStacksDiv = document.getElementById('player-stacks');
-  playerStacksDiv.innerHTML = '';
-  me.stacks.forEach((stack, si) => {
-    if (stack.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'stack-container empty-stack';
-      playerStacksDiv.appendChild(empty);
-      return;
-    }
-    const sc = document.createElement('div');
-    sc.className = 'stack-container';
-    stack.forEach((c, ci) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
-      wrapper.style.bottom = (ci * 3) + 'px';
-      wrapper.style.zIndex = ci;
-      wrapper.innerHTML = renderCardHTML(c);
-      if (c.playable && isMyTurn && !state.gameOver) {
-        wrapper.onclick = () => onPlayStackCard(si);
-      }
-      sc.appendChild(wrapper);
-    });
-    if (stack.length > 1) {
-      const badge = document.createElement('span');
-      badge.className = 'stack-count';
-      badge.textContent = stack.length - 1;
-      sc.appendChild(badge);
-    }
-    playerStacksDiv.appendChild(sc);
-  });
 
   // Player hand (flat row with overlap, DOM diffing to prevent flicker)
   const handDiv = document.getElementById('player-hand');
