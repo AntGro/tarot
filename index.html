@@ -265,7 +265,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 /* Center play zone */
@@ -372,11 +372,10 @@ body {
 .hand-card.playable:hover {
   transform: translateY(-20px) !important;
   z-index: 100 !important;
-}
-  z-index: 100 !important;
   box-shadow: 0 0 0 2px var(--success), 0 8px 24px rgba(0,0,0,0.5);
 }
-.hand-card.not-playable { opacity: 0.5; filter: brightness(0.7); }
+.hand-card.not-playable { opacity: 0.5; filter: brightness(0.7); pointer-events: none; }
+.hand-card { transition: opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease; }
 
 /* Stack cards */
 .stack-container {
@@ -404,7 +403,23 @@ body {
   transform: translateY(-8px) !important;
   box-shadow: 0 0 0 2px var(--success), 0 6px 16px rgba(0,0,0,0.5);
 }
-.stack-card.not-playable { opacity: 0.5; filter: brightness(0.7); }
+.stack-card.not-playable { opacity: 0.5; filter: brightness(0.7); pointer-events: none; }
+
+/* Empty stack placeholder */
+.empty-stack {
+  width: calc(var(--stack-card-w) + 8px);
+  height: calc(var(--stack-card-h) + 20px);
+  border: 2px dashed rgba(255,255,255,0.12);
+  border-radius: var(--card-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mini-stack.empty-stack {
+  width: calc(var(--stack-card-w) + 8px);
+  height: calc(var(--stack-card-h) + 10px);
+}
 
 /* Stack count badge */
 .stack-count {
@@ -814,6 +829,8 @@ function createGameState() {
     secondCard: null, // second card of trick (for display)
     secondCardPlayerIdx: null,
     pendingTrick: false, // true when both cards played, awaiting resolution
+    lastTrickCards: null, // [{card, playerIdx}, {card, playerIdx}] — last resolved trick
+    lastTrickWinner: null, // winner index of last trick
     lastStarterIdx: null,
     cardsToReveal: [],
     gameOver: false
@@ -858,6 +875,8 @@ function dealGame(state) {
   state.secondCard = null;
   state.secondCardPlayerIdx = null;
   state.pendingTrick = false;
+  state.lastTrickCards = null;
+  state.lastTrickWinner = null;
   state.cardsToReveal = [];
   state.gameOver = false;
 
@@ -962,7 +981,11 @@ function playCard(state, card, fromStack, stackIdx, handIdx) {
   }
 
   if (state.activeCard === null) {
-    // First card of trick
+    // First card of trick — clear last trick display if this player was the winner
+    if (state.lastTrickWinner === state.activeIdx) {
+      state.lastTrickCards = null;
+      state.lastTrickWinner = null;
+    }
     state.activeCard = card;
     state.activeCardPlayerIdx = state.activeIdx;
     state.activeIdx = 1 - state.activeIdx;
@@ -988,7 +1011,14 @@ function playCard(state, card, fromStack, stackIdx, handIdx) {
 function resolvePendingTrick(state) {
   if (!state.pendingTrick) return state;
 
+  // Save the trick cards for display
+  state.lastTrickCards = [
+    { card: state.activeCard, playerIdx: state.activeCardPlayerIdx },
+    { card: state.secondCard, playerIdx: state.secondCardPlayerIdx }
+  ];
+
   const winnerId = compareCards(state, state.secondCard, state.activeCard);
+  state.lastTrickWinner = winnerId;
   state.activeIdx = winnerId;
   state.activeCard = null;
   state.activeCardPlayerIdx = null;
@@ -1026,6 +1056,8 @@ function serializeState(state, forPlayer) {
     secondCard: state.secondCard || null,
     secondCardPlayerIdx: state.secondCardPlayerIdx != null ? state.secondCardPlayerIdx : null,
     pendingTrick: state.pendingTrick || false,
+    lastTrickCards: state.lastTrickCards || null,
+    lastTrickWinner: state.lastTrickWinner != null ? state.lastTrickWinner : null,
     gameOver: state.gameOver,
     myIdx: forPlayer
   }));
@@ -1250,21 +1282,17 @@ function startGame() {
 }
 
 function broadcastState() {
+  // If there's a pending trick, resolve immediately (no timer)
+  if (gameState.pendingTrick) {
+    resolvePendingTrick(gameState);
+  }
+
   // Send personalized state to guest
   if (conn && conn.open) {
     conn.send({ type: 'game-state', state: serializeState(gameState, 1) });
   }
   // Render host's view
   renderFromState(serializeState(gameState, 0));
-
-  // If there's a pending trick, show both cards for 2s then resolve
-  if (gameState.pendingTrick) {
-    setTimeout(() => {
-      resolvePendingTrick(gameState);
-      broadcastState();
-    }, 2000);
-    return;
-  }
 
   // Check game over after rendering
   if (gameState.gameOver) {
@@ -1290,16 +1318,12 @@ function startAI() {
 }
 
 function broadcastStateAI() {
-  renderFromState(serializeState(gameState, 0));
-
-  // If there's a pending trick, show both cards for 2s then resolve
+  // If there's a pending trick, resolve immediately (no timer)
   if (gameState.pendingTrick) {
-    setTimeout(() => {
-      resolvePendingTrick(gameState);
-      broadcastStateAI();
-    }, 2000);
-    return;
+    resolvePendingTrick(gameState);
   }
+
+  renderFromState(serializeState(gameState, 0));
 
   if (gameState.gameOver) {
     setTimeout(() => showGameOver(), 1500);
@@ -1476,6 +1500,12 @@ function renderFromState(state) {
   oppStacksDiv.innerHTML = '';
   if (opp.stacks) {
     opp.stacks.forEach(stack => {
+      if (stack.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'mini-stack empty-stack';
+        oppStacksDiv.appendChild(empty);
+        return;
+      }
       const ms = document.createElement('div');
       ms.className = 'mini-stack';
       stack.forEach((c, i) => {
@@ -1529,10 +1559,28 @@ function renderFromState(state) {
     }
   }
 
+  // Show last trick cards if no active card is being played
+  if (!state.activeCard && !state.secondCard && state.lastTrickCards) {
+    state.lastTrickCards.forEach(tc => {
+      const cardHtml = `<div class="card-played" style="opacity:0.7;">${renderCardHTML(tc.card)}</div>`;
+      if (tc.playerIdx === state.myIdx) {
+        slotMe.innerHTML += cardHtml;
+      } else {
+        slotOpp.innerHTML += cardHtml;
+      }
+    });
+  }
+
   // Player stacks
   const playerStacksDiv = document.getElementById('player-stacks');
   playerStacksDiv.innerHTML = '';
   me.stacks.forEach((stack, si) => {
+    if (stack.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'stack-container empty-stack';
+      playerStacksDiv.appendChild(empty);
+      return;
+    }
     const sc = document.createElement('div');
     sc.className = 'stack-container';
     stack.forEach((c, ci) => {
@@ -1555,42 +1603,63 @@ function renderFromState(state) {
     playerStacksDiv.appendChild(sc);
   });
 
-  // Player hand (flat row with overlap)
+  // Player hand (flat row with overlap, DOM diffing to prevent flicker)
   const handDiv = document.getElementById('player-hand');
-  handDiv.innerHTML = '';
   const handCards = me.hand;
   const n = handCards.length;
+
   if (n > 0) {
     const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
     const availWidth = window.innerWidth - 20;
-    // Each card shows at least 30% — up to 70% overlap
     const minVisible = cardW * 0.30;
-    const idealStep = cardW * 0.35; // 65% overlap by default
+    const idealStep = cardW * 0.35;
     const step = n > 1 ? Math.max(minVisible, Math.min(idealStep, (availWidth - cardW) / (n - 1))) : 0;
     const totalWidth = cardW + (n - 1) * step;
     const startX = (availWidth - totalWidth) / 2;
 
+    // Build set of current card IDs
+    const newCardIds = new Set(handCards.map(c => cardId(c)));
+    // Remove cards no longer in hand
+    const existing = handDiv.querySelectorAll('.hand-card[data-card-id]');
+    existing.forEach(el => {
+      if (!newCardIds.has(el.getAttribute('data-card-id'))) {
+        el.remove();
+      }
+    });
+
     handCards.forEach((c, i) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'hand-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
+      const cid = cardId(c);
+      let wrapper = handDiv.querySelector(`.hand-card[data-card-id="${cid}"]`);
+      const playableClass = c.playable && isMyTurn ? ' playable' : ' not-playable';
+
+      if (!wrapper) {
+        // Create new card element
+        wrapper = document.createElement('div');
+        wrapper.setAttribute('data-card-id', cid);
+        wrapper.innerHTML = renderCardHTML(c);
+        handDiv.appendChild(wrapper);
+      }
+
+      wrapper.className = 'hand-card' + playableClass;
       wrapper.style.cssText = `
         position: absolute;
         left: ${startX + i * step}px;
         top: 0;
         z-index: ${i};
       `;
-      wrapper.innerHTML = renderCardHTML(c);
+
+      wrapper.onclick = null;
       if (c.playable && isMyTurn && !state.gameOver) {
         wrapper.onclick = () => onPlayHandCard(i);
       }
-      handDiv.appendChild(wrapper);
     });
+  } else {
+    handDiv.innerHTML = '';
   }
 }
 
 /* ─── Play actions ─── */
 function onPlayHandCard(handIdx) {
-  if (gameState && gameState.pendingTrick) return; // Wait for trick to resolve
   if (isHost || isAI) {
     const p = gameState.players[myPlayerIdx];
     const card = p.hand[handIdx];
@@ -1605,7 +1674,6 @@ function onPlayHandCard(handIdx) {
 }
 
 function onPlayStackCard(stackIdx) {
-  if (gameState && gameState.pendingTrick) return; // Wait for trick to resolve
   if (isHost || isAI) {
     const p = gameState.players[myPlayerIdx];
     const stack = p.stacks[stackIdx];
