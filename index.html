@@ -319,7 +319,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 2px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .player-hand {
   display: flex;
@@ -1344,9 +1344,18 @@ function resizeCards() {
     cardH = Math.round(cardW * ratio);
   }
 
-  // Stack cards: slightly smaller than hand cards
-  const stackH = Math.round(Math.min(cardH * 0.85, Math.max(50, vh * 0.15)));
-  const stackW = Math.round(stackH / ratio);
+  // Stack cards: fit all 7 stacks in one row
+  const maxStacks = 7;
+  const stackGap = 2;
+  const stackPadding = 8; // per-stack container padding
+  const maxStackContainerW = Math.floor((vw - 20) / maxStacks) - stackGap;
+  const maxStackW = maxStackContainerW - stackPadding;
+  let stackH = Math.round(Math.min(cardH * 0.85, Math.max(50, vh * 0.15)));
+  let stackW = Math.round(stackH / ratio);
+  if (stackW > maxStackW) {
+    stackW = Math.max(20, maxStackW);
+    stackH = Math.round(stackW * ratio);
+  }
 
   const r = document.documentElement.style;
   r.setProperty('--card-w', cardW + 'px');
