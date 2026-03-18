@@ -281,7 +281,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: calc(var(--card-w) * 0.20);
 }
 .opponent-hand {
   display: flex;
@@ -298,7 +298,7 @@ body {
 .opponent-stacks {
   display: flex;
   justify-content: center;
-  gap: calc(var(--card-w) * 0.20);
+  gap: calc(var(--card-w) * 0.10);
   flex-wrap: nowrap;
 }
 
@@ -359,7 +359,7 @@ body {
 .player-stacks {
   display: flex;
   justify-content: center;
-  gap: calc(var(--card-w) * 0.20);
+  gap: calc(var(--card-w) * 0.10);
   flex-wrap: nowrap;
 }
 .player-hand {
@@ -565,8 +565,9 @@ body {
 }
 @media (min-width: 1200px) {
   .player-section { gap: calc(var(--card-w) * 0.25); }
-  .player-stacks { gap: calc(var(--card-w) * 0.25); }
-  .opponent-stacks { gap: calc(var(--card-w) * 0.25); }
+  .opponent-section { gap: calc(var(--card-w) * 0.25); }
+  .player-stacks { gap: calc(var(--card-w) * 0.125); }
+  .opponent-stacks { gap: calc(var(--card-w) * 0.125); }
 }
 
 /* Ultra-narrow: text-only cards (triggered by JS text-mode class) */
@@ -1445,10 +1446,10 @@ function resizeCards() {
     cardH = Math.round(cardW * ratio);
   }
 
-  // Also constrain so 7 stacks fit in one row (accounting for 20% card-width gaps)
-  // Total width = 7 * (cardW + 4px) + 6 * (cardW * 0.2)
-  // vw - 20 >= 7 * cardW + 28 + 1.2 * cardW = 8.2 * cardW + 28
-  const maxStackCardW = Math.floor(((vw - 20) - 28) / 8.2);
+  // Also constrain so 7 stacks fit in one row (accounting for 10% card-width h-gaps)
+  // Total width = 7 * (cardW + 4px) + 6 * (cardW * 0.1)
+  // vw - 20 >= 7 * cardW + 28 + 0.6 * cardW = 7.6 * cardW + 28
+  const maxStackCardW = Math.floor(((vw - 20) - 28) / 7.6);
   if (cardW > maxStackCardW) {
     cardW = Math.max(20, maxStackCardW);
     cardH = Math.round(cardW * ratio);
@@ -1696,8 +1697,12 @@ function renderFromState(state) {
       } else {
         sc.className = 'stack-container';
         stack.forEach((c, ci) => {
+          const isTopCard = ci === stack.length - 1;
+          const topPlayable = stack[stack.length - 1].playable && isMyTurn;
           const wrapper = document.createElement('div');
-          wrapper.className = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
+          // Only darken non-top cards if the top card is also not playable
+          const cardPlayable = (c.playable && isMyTurn) || (!isTopCard && topPlayable);
+          wrapper.className = 'stack-card' + (c.playable && isMyTurn ? ' playable' : (cardPlayable ? '' : ' not-playable'));
           wrapper.setAttribute('data-ci', ci);
           wrapper.style.bottom = (ci * 3) + 'px';
           wrapper.style.zIndex = ci;
@@ -1713,7 +1718,10 @@ function renderFromState(state) {
       stack.forEach((c, ci) => {
         const wrapper = sc.querySelector(`[data-ci="${ci}"]`);
         if (wrapper) {
-          const newClass = 'stack-card' + (c.playable && isMyTurn ? ' playable' : ' not-playable');
+          const isTopCard = ci === stack.length - 1;
+          const topPlayable = stack[stack.length - 1].playable && isMyTurn;
+          const cardPlayable = (c.playable && isMyTurn) || (!isTopCard && topPlayable);
+          const newClass = 'stack-card' + (c.playable && isMyTurn ? ' playable' : (cardPlayable ? '' : ' not-playable'));
           if (wrapper.className !== newClass) wrapper.className = newClass;
           wrapper.onclick = null;
           if (c.playable && isMyTurn && !state.gameOver) {
