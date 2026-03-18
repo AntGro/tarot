@@ -2,6 +2,9 @@
 *
 !index.html
 !README.md
+!LICENSE
+!sitemap.xml
+!robots.txt
 !.gitignore
 !images/
 !images/**

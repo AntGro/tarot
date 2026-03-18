@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://antgro.github.io/tarot/sitemap.xml
