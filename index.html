@@ -55,6 +55,8 @@
   --gold-dim: #8b7023;
   --card-w: 80px;
   --card-h: 148px;
+  --card-img-w: 80px;
+  --card-img-h: 148px;
   --card-radius: 8px;
   --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
 
@@ -388,9 +390,10 @@ body {
   overflow: hidden;
 }
 .card img {
-  width: 100%;
-  height: 100%;
+  width: var(--card-img-w, 100%);
+  height: var(--card-img-h, 100%);
   object-fit: fill;
+  object-position: top left;
   border-radius: var(--card-radius);
   display: block;
 }
@@ -401,7 +404,7 @@ body {
   height: var(--card-h);
   border-radius: var(--card-radius);
   border: 1px solid rgba(0,0,0,0.4);
-  background: url('images/cardback.jpg') center/cover;
+  background: url('images/cardback.jpg') top left / var(--card-img-w, 100%) var(--card-img-h, 100%) no-repeat;
   box-shadow: var(--card-shadow);
   position: relative;
   overflow: hidden;
@@ -573,52 +576,6 @@ body {
   .opponent-stacks { gap: calc(var(--card-w) * 0.125); }
 }
 
-/* Ultra-narrow: text-only cards (triggered by JS text-mode class) */
-.text-mode .card img, .text-mode .mini-card-back, .text-mode .card-back { display: none !important; }
-.text-mode .card .card-text-fallback, .text-mode .mini-stack .card-text-fallback { display: flex !important; }
-.text-mode .opponent-card-back { width: 20px; height: 30px; }
-
-/* Text fallback for cards (hidden by default, shown in text-mode) */
-.card-text-fallback {
-  display: none;
-  width: 100%;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: calc(var(--card-w) * 0.4);
-  text-align: center;
-  line-height: 1.1;
-  border-radius: var(--card-radius);
-  border: 2px solid rgba(255,255,255,0.3);
-}
-.mini-stack .card-text-fallback {
-  font-size: calc(var(--card-w) * 0.4);
-}
-.card-text-fallback.suit-hearts, .card-text-fallback.suit-diamonds { color: #e74c3c; background: #1a0a0a; }
-.card-text-fallback.suit-spades, .card-text-fallback.suit-clubs { color: #ecf0f1; background: #1a1a1a; }
-.card-text-fallback.suit-trump { color: #f1c40f; background: #1a1a0a; }
-.card-text-fallback.suit-fool { color: #9b59b6; background: #1a0a1a; }
-
-/* Card label overlay — hidden by default, shown on ultra-narrow */
-.card-label {
-  display: none;
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  background: rgba(0,0,0,0.7);
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: bold;
-  padding: 1px 3px;
-  border-radius: 3px;
-  z-index: 2;
-  line-height: 1.2;
-  pointer-events: none;
-}
-.card-label.label-red { color: #e74c3c; }
-.card-label.label-gold { color: #f1c40f; }
-.card-label.label-purple { color: #c39bd3; }
 </style>
 </head>
 <body>
@@ -1433,7 +1390,7 @@ function resizeCards() {
   const vw = window.innerWidth;
   const ratio = 1.845; // trump aspect ratio
   const maxHandCards = 11; // max cards in hand
-  const textModeThreshold = 50; // px — below this, switch to text mode
+  const minReadableW = 50; // px — below this, cards get cropped instead of shrunk
 
   // Height-based sizing (fit vertically)
   const handH = Math.max(60, Math.min(240, vh * 0.28));
@@ -1458,16 +1415,15 @@ function resizeCards() {
     cardH = Math.round(cardW * ratio);
   }
 
+  // If cards are too small, keep image at readable size and crop
+  const imgW = Math.max(cardW, minReadableW);
+  const imgH = Math.round(imgW * ratio);
+
   const r = document.documentElement.style;
   r.setProperty('--card-w', cardW + 'px');
   r.setProperty('--card-h', cardH + 'px');
-
-  // Toggle text mode when cards are too small for images
-  if (cardW < textModeThreshold) {
-    document.documentElement.classList.add('text-mode');
-  } else {
-    document.documentElement.classList.remove('text-mode');
-  }
+  r.setProperty('--card-img-w', imgW + 'px');
+  r.setProperty('--card-img-h', imgH + 'px');
 }
 window.addEventListener('resize', resizeCards);
 resizeCards();
@@ -1496,32 +1452,6 @@ function getCardImagePath(c) {
   return `images/${val}_of_${c.suit}.${ext}`;
 }
 
-function cardTextFallbackClass(c) {
-  if (c.type === CardType.FOOL) return 'suit-fool';
-  if (c.type === CardType.TRUMP) return 'suit-trump';
-  if (c.suit === 'hearts') return 'suit-hearts';
-  if (c.suit === 'diamonds') return 'suit-diamonds';
-  if (c.suit === 'spades') return 'suit-spades';
-  if (c.suit === 'clubs') return 'suit-clubs';
-  return '';
-}
-
-function cardTextLabel(c) {
-  if (c.type === CardType.FOOL) return '🃏';
-  const suitSymbol = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' };
-  if (c.type === CardType.TRUMP) return `${c.value}🂠`;
-  const valNames = { 1: 'A', 11: 'V', 12: 'C', 13: 'D', 14: 'R' };
-  const v = valNames[c.value] || c.value;
-  return `${v}${suitSymbol[c.suit] || ''}`;
-}
-
-function cardLabelClass(c) {
-  if (c.type === CardType.FOOL) return 'label-purple';
-  if (c.type === CardType.TRUMP) return 'label-gold';
-  if (c.suit === 'hearts' || c.suit === 'diamonds') return 'label-red';
-  return '';
-}
-
 function renderCardHTML(c) {
   if (c.hidden || c.faceDown) {
     return `<div class="card-back"></div>`;
@@ -1530,15 +1460,8 @@ function renderCardHTML(c) {
   let cls = 'card';
   if (isOudler(c)) cls += ' oudler';
 
-  const fbClass = cardTextFallbackClass(c);
-  const fbLabel = cardTextLabel(c);
-  const labelCls = cardLabelClass(c);
-  const label = cardTextLabel(c);
-
   return `<div class="${cls}">
-    <span class="card-label ${labelCls}">${label}</span>
     <img src="${getCardImagePath(c)}" alt="${cardDisplayValue(c)} ${cardDisplaySuit(c)}" loading="lazy">
-    <span class="card-text-fallback ${fbClass}">${fbLabel}</span>
   </div>`;
 }
 
