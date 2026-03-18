@@ -1425,7 +1425,11 @@ function resizeCards() {
   r.setProperty('--card-img-w', imgW + 'px');
   r.setProperty('--card-img-h', imgH + 'px');
 }
-window.addEventListener('resize', resizeCards);
+let _lastRenderedState = null;
+window.addEventListener('resize', () => {
+  resizeCards();
+  if (_lastRenderedState) renderFromState(_lastRenderedState);
+});
 resizeCards();
 
 function showGameScreen() {
@@ -1466,6 +1470,7 @@ function renderCardHTML(c) {
 }
 
 function renderFromState(state) {
+  _lastRenderedState = state;
   showGameScreen();
   const me = state.players[state.myIdx];
   const opp = state.players[1 - state.myIdx];
