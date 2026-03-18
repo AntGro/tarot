@@ -1,55 +1,96 @@
-# ♠ Tarot 1v1
+# 🃏 Tarot 1v1
 
-A 2-player French Tarot card game — fully static, no server required.
+A browser-based **French Tarot** card game for two players — no server required.
 
-## How to Play
+## ✨ Features
 
-**Online:** Visit the GitHub Pages URL → create a room → share the 4-letter code with your opponent.
+- **Peer-to-peer multiplayer** via [PeerJS](https://peerjs.com/) (WebRTC) — no backend, no signaling server to maintain
+- **AI opponent** — play solo against a built-in AI that follows standard Tarot strategy
+- **Single-file architecture** — one `index.html`, drop it anywhere and play
+- **Full French Tarot rules** for 1v1 (simplified from the 4-player variant):
+  - 78-card deck (suits + 21 trumps + Excuse)
+  - Bidding phase (Pass / Petite / Garde)
+  - Dog (chien) reveal and exchange
+  - Trick-by-trick play with proper suit/trump obligations
+  - Scoring with multipliers and bonus tracking (Petit au bout, etc.)
+- **Responsive layout** — scales from mobile to desktop
+- **Card images** — classic French card artwork with illustrated trumps
+- **Text-mode fallback** — for narrow screens, switches to compact text rendering
 
-**Solo:** Click "Partie solo" to play against a simple AI opponent.
+## 🚀 Play
 
-## Features
+### Online (GitHub Pages)
 
-- 🃏 **78-card French Tarot deck** — 21 trumps + Excuse + 4 suits of 14 (with Knights)
-- 🎮 **2-player multiplayer** via WebRTC (PeerJS) — peer-to-peer, no server
-- 🤖 **AI opponent** for solo practice
-- 🎨 **Felt table UI** with CSS-rendered cards (no images needed)
-- 🃏 **Fan hand layout** with hover animations
-- 📱 **Responsive** — works on desktop and mobile
-- 🔊 **Sound effects** (Web Audio API)
-- 🏠 **Room codes** — 4-letter codes to join games
-- 📋 **Copy code** — click to copy room code
-- 🔌 **Disconnect detection**
+👉 **[Play now](https://antgro.github.io/tarot/)**
 
-## Game Rules (2-player variant)
+### Locally
 
-Each player gets **11 hand cards** and **7 stacks** (7, 6, 5, 4, 3, 2, 1 cards — only the top card is visible).
-
-Players alternate playing cards:
-- **Must follow suit** if possible
-- **Must trump** if can't follow suit and have trumps
-- **Must overtrump** if possible (play a higher trump than what's on the table)
-- **Fool (Excuse)** can always be played — but almost never wins
-
-**Scoring:** Card points range from 0.5 (pip cards) to 4.5 (Kings, Bouts). The 3 **Bouts** (Oudlers) are: Trump 1 (Petit), Trump 21, and the Fool.
-
-## Tech Stack
-
-- **PeerJS** (WebRTC) for P2P multiplayer
-- **Vanilla JS** — no build step, no framework
-- **CSS-only cards** — no image assets required
-- Single `index.html` — deploy anywhere
-
-## Deploy
-
-Just serve `index.html`. Works on GitHub Pages, Netlify, Vercel, or any static host.
+Just open `index.html` in a browser. No build step, no dependencies.
 
 ```bash
-# Local dev
-python3 -m http.server 8080
-# then open http://localhost:8080
+git clone https://github.com/AntGro/tarot.git
+open tarot/index.html   # macOS
+# or
+xdg-open tarot/index.html   # Linux
 ```
 
-## License
+## 🎮 How to Play
+
+1. **Choose a mode:**
+   - 🤖 **vs AI** — instant solo game
+   - 👥 **Host** — create a room and share the Room ID with a friend
+   - 🔗 **Join** — enter a Room ID to join an existing game
+
+2. **Bidding:** After cards are dealt, decide whether to bid (Petite/Garde) or pass.
+
+3. **Dog phase:** The bidder sees the 6-card dog and can exchange cards.
+
+4. **Play:** Alternate tricks following French Tarot rules:
+   - Must follow suit if possible
+   - Must play a trump if you can't follow suit
+   - Must overtrump if possible (play a higher trump than what's on the table)
+   - The Excuse can be played anytime but doesn't win tricks
+
+5. **Scoring:** Points are counted based on card values. The bidder needs 36+ points (with 0 bouts) to 56+ points (with 3 bouts) to win.
+
+## 🏗️ Architecture
+
+```
+tarot/
+├── index.html     # Everything — HTML, CSS, JS, game engine (~1900 lines)
+├── images/        # Card artwork
+│   ├── trumps/    # 22 trump card illustrations (TN-00.jpg to TN-21.jpg)
+│   ├── cardback.jpg
+│   └── *.png      # Standard suit cards
+└── README.md
+```
+
+**Key design decisions:**
+- **Zero dependencies** (except PeerJS CDN for multiplayer)
+- **No framework** — vanilla JS with a state-driven render loop
+- **DOM diffing** — signature-based per-section updates to minimize flicker
+- **Per-slot center zone** — each table slot tracks its own card independently
+- **CSS transitions** for opacity changes (trick resolution) instead of DOM rebuilds
+
+## 📜 Rules Reference
+
+This is a **1v1 adaptation** of French Tarot. Key differences from the standard 4-player game:
+
+| Aspect | Standard (4p) | This version (1v1) |
+|--------|---------------|---------------------|
+| Players | 3–5 | 2 |
+| Dog size | 6 cards | 6 cards |
+| Hand size | 18 cards | 36 cards |
+| Bids | Petite/Garde/Garde Sans/Garde Contre | Petite/Garde |
+| Bouts needed to win | Same point thresholds | Same point thresholds |
+
+## 🔀 Branches
+
+| Branch | Description |
+|--------|-------------|
+| `master` | Current version — static single-file PeerJS game |
+| `v1` | Archive of the original Python/Flask multiplayer version |
+
+## 📄 License
 
 MIT
