@@ -452,9 +452,9 @@ body {
 .stack-card.not-playable { opacity: 0.5; filter: brightness(0.7); pointer-events: none; }
 
 /* Empty stack placeholder */
-.empty-stack {
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+.stack-container.empty-stack {
+  width: calc(var(--stack-card-w) + 8px);
+  height: calc(var(--stack-card-h) + 20px);
   border: 2px dashed rgba(255,255,255,0.12);
   border-radius: var(--card-radius);
   display: flex;
@@ -463,8 +463,14 @@ body {
   flex-shrink: 0;
 }
 .mini-stack.empty-stack {
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+  width: calc(var(--stack-card-w) + 8px);
+  height: calc(var(--stack-card-h) + 10px);
+  border: 2px dashed rgba(255,255,255,0.12);
+  border-radius: var(--card-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 /* Stack count badge */
