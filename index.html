@@ -286,18 +286,14 @@ body {
 .opponent-hand {
   display: flex;
   justify-content: center;
-  height: calc(var(--card-h) * 0.3);
-  position: relative;
-  overflow: hidden;
+  align-items: center;
 }
 .opponent-card-back {
-  width: calc(var(--card-w) * 0.4);
-  height: calc(var(--card-h) * 0.3);
-  background: linear-gradient(135deg, #c0392b, #8e2a1e);
-  border: 2px solid #a03020;
+  width: calc(var(--card-w) * 0.5);
+  height: calc(var(--card-h) * 0.5);
+  background: url('images/cardback.jpg') center/cover;
   border-radius: 4px;
-  margin: 0 -8px;
-  box-shadow: var(--card-shadow);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 .opponent-stacks {
   display: flex;
@@ -1431,14 +1427,14 @@ function resizeCards() {
   const textModeThreshold = 50; // px — below this, switch to text mode
 
   // Height-based sizing (fit vertically)
-  const handH = Math.max(60, Math.min(160, vh * 0.22));
+  const handH = Math.max(60, Math.min(240, vh * 0.28));
   let cardH = Math.round(handH - 24);
   let cardW = Math.round(cardH / ratio);
 
   // Width-based constraint: all hand cards must fit in one row
   // Cards overlap 25-75%, step adapts to fit available width
   const availW = vw - 40; // padding
-  const maxCardW = Math.floor(availW / (maxHandCards * 0.55));
+  const maxCardW = Math.floor(availW / (maxHandCards * 0.40));
   if (cardW > maxCardW) {
     cardW = maxCardW;
     cardH = Math.round(cardW * ratio);
@@ -1561,7 +1557,7 @@ function renderFromState(state) {
     for (let i = 0; i < oppHandCount; i++) {
       const el = document.createElement('div');
       el.className = 'opponent-card-back';
-      el.style.marginLeft = i > 0 ? '-8px' : '0';
+      el.style.marginLeft = i > 0 ? '-6px' : '0';
       oppHandDiv.appendChild(el);
     }
   }
