@@ -57,8 +57,7 @@
   --card-h: 148px;
   --card-radius: 8px;
   --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  --stack-card-w: 70px;
-  --stack-card-h: 129px;
+
   --font: 'Segoe UI', system-ui, sans-serif;
   --text: #e8e0d0;
   --text-dim: #a09880;
@@ -426,8 +425,8 @@ body {
 /* Stack cards */
 .stack-container {
   position: relative;
-  width: calc(var(--stack-card-w) + 8px);
-  height: calc(var(--stack-card-h) + 20px);
+  width: calc(var(--card-w) + 4px);
+  height: calc(var(--card-h) + 12px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -437,12 +436,12 @@ body {
   transition: transform 0.2s ease;
 }
 .stack-card .card {
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+  width: var(--card-w);
+  height: var(--card-h);
 }
 .stack-card .card-back {
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+  width: var(--card-w);
+  height: var(--card-h);
 }
 .stack-card.playable { cursor: pointer; }
 .stack-card.playable:hover {
@@ -453,8 +452,8 @@ body {
 
 /* Empty stack placeholder */
 .stack-container.empty-stack {
-  width: calc(var(--stack-card-w) + 8px);
-  height: calc(var(--stack-card-h) + 20px);
+  width: calc(var(--card-w) + 4px);
+  height: calc(var(--card-h) + 12px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -462,14 +461,14 @@ body {
 }
 .stack-container.empty-stack::after {
   content: '';
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+  width: var(--card-w);
+  height: var(--card-h);
   border: 2px dashed rgba(255,255,255,0.12);
   border-radius: var(--card-radius);
 }
 .mini-stack.empty-stack {
-  width: calc(var(--stack-card-w) + 8px);
-  height: calc(var(--stack-card-h) + 10px);
+  width: calc(var(--card-w) + 4px);
+  height: calc(var(--card-h) + 6px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -477,42 +476,22 @@ body {
 }
 .mini-stack.empty-stack::after {
   content: '';
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+  width: var(--card-w);
+  height: var(--card-h);
   border: 2px dashed rgba(255,255,255,0.12);
   border-radius: var(--card-radius);
-}
-
-/* Stack count badge */
-.stack-count {
-  position: absolute;
-  bottom: -8px;
-  right: -8px;
-  background: rgba(0,0,0,0.8);
-  color: var(--gold);
-  font-size: 0.65rem;
-  font-weight: bold;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  border: 1px solid var(--gold-dim);
-  pointer-events: none;
 }
 
 /* Small stack cards for opponent */
 .mini-stack {
   position: relative;
-  width: calc(var(--stack-card-w) + 8px);
-  height: calc(var(--stack-card-h) + 10px);
+  width: calc(var(--card-w) + 4px);
+  height: calc(var(--card-h) + 6px);
 }
 .mini-card-back {
   position: absolute;
-  width: var(--stack-card-w);
-  height: var(--stack-card-h);
+  width: var(--card-w);
+  height: var(--card-h);
   background: url('images/cardback.jpg') center/cover;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
@@ -581,7 +560,7 @@ body {
 
 /* ═══════════════════════ Responsive ═══════════════════════ */
 @media (max-width: 600px) {
-  :root { --card-w: 56px; --card-h: 103px; --card-radius: 5px; --stack-card-w: 50px; --stack-card-h: 92px; }
+  :root { --card-w: 56px; --card-h: 103px; --card-radius: 5px; }
   .lobby-title { font-size: 2rem; }
   .lobby-panel { min-width: unset; padding: 20px; }
   .room-code-display { font-size: 1.8rem; letter-spacing: 6px; }
@@ -609,7 +588,7 @@ body {
   border: 2px solid rgba(255,255,255,0.3);
 }
 .mini-stack .card-text-fallback {
-  font-size: calc(var(--stack-card-w) * 0.4);
+  font-size: calc(var(--card-w) * 0.4);
 }
 .card-text-fallback.suit-hearts, .card-text-fallback.suit-diamonds { color: #e74c3c; background: #1a0a0a; }
 .card-text-fallback.suit-spades, .card-text-fallback.suit-clubs { color: #ecf0f1; background: #1a1a1a; }
@@ -1465,24 +1444,16 @@ function resizeCards() {
     cardH = Math.round(cardW * ratio);
   }
 
-  // Stack cards: fit all 7 stacks in one row
-  const maxStacks = 7;
-  const stackGap = 2;
-  const stackPadding = 8; // per-stack container padding
-  const maxStackContainerW = Math.floor((vw - 20) / maxStacks) - stackGap;
-  const maxStackW = maxStackContainerW - stackPadding;
-  let stackH = Math.round(Math.min(cardH * 0.85, Math.max(50, vh * 0.15)));
-  let stackW = Math.round(stackH / ratio);
-  if (stackW > maxStackW) {
-    stackW = Math.max(20, maxStackW);
-    stackH = Math.round(stackW * ratio);
+  // Also constrain so 7 stacks fit in one row
+  const maxStackCardW = Math.floor((vw - 20) / 7) - 6;
+  if (cardW > maxStackCardW) {
+    cardW = Math.max(20, maxStackCardW);
+    cardH = Math.round(cardW * ratio);
   }
 
   const r = document.documentElement.style;
   r.setProperty('--card-w', cardW + 'px');
   r.setProperty('--card-h', cardH + 'px');
-  r.setProperty('--stack-card-w', stackW + 'px');
-  r.setProperty('--stack-card-h', stackH + 'px');
 
   // Toggle text mode when cards are too small for images
   if (cardW < textModeThreshold) {
@@ -1544,21 +1515,20 @@ function cardLabelClass(c) {
   return '';
 }
 
-function renderCardHTML(c, small) {
+function renderCardHTML(c) {
   if (c.hidden || c.faceDown) {
-    return `<div class="card-back" ${small ? 'style="width:var(--stack-card-w);height:var(--stack-card-h);"' : ''}></div>`;
+    return `<div class="card-back"></div>`;
   }
 
   let cls = 'card';
   if (isOudler(c)) cls += ' oudler';
 
-  const sizeStyle = small ? `style="width:var(--stack-card-w);height:var(--stack-card-h);"` : '';
   const fbClass = cardTextFallbackClass(c);
   const fbLabel = cardTextLabel(c);
   const labelCls = cardLabelClass(c);
   const label = cardTextLabel(c);
 
-  return `<div class="${cls}" ${sizeStyle}>
+  return `<div class="${cls}">
     <span class="card-label ${labelCls}">${label}</span>
     <img src="${getCardImagePath(c)}" alt="${cardDisplayValue(c)} ${cardDisplaySuit(c)}" loading="lazy">
     <span class="card-text-fallback ${fbClass}">${fbLabel}</span>
@@ -1624,23 +1594,14 @@ function renderFromState(state) {
         if (c.faceDown || c.hidden) {
           el.className = 'mini-card-back';
         } else {
-          el.innerHTML = renderCardHTML(c, true);
-          const cs = getComputedStyle(document.documentElement);
+          el.innerHTML = renderCardHTML(c);
           el.firstChild.style.position = 'absolute';
-          el.firstChild.style.width = cs.getPropertyValue('--stack-card-w');
-          el.firstChild.style.height = cs.getPropertyValue('--stack-card-h');
         }
         el.style.top = (i * 2) + 'px';
         el.style.left = (i * 1) + 'px';
         el.style.position = 'absolute';
         ms.appendChild(el);
       });
-      if (stack.length > 1) {
-        const badge = document.createElement('span');
-        badge.className = 'stack-count';
-        badge.textContent = stack.length - 1;
-        ms.appendChild(badge);
-      }
     });
   }
 
@@ -1743,12 +1704,6 @@ function renderFromState(state) {
           }
           sc.appendChild(wrapper);
         });
-        if (stack.length > 1) {
-          const badge = document.createElement('span');
-          badge.className = 'stack-count';
-          badge.textContent = stack.length - 1;
-          sc.appendChild(badge);
-        }
       }
     } else {
       // Structure unchanged — only update playable classes and click handlers
