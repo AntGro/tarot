@@ -453,8 +453,8 @@ body {
 
 /* Empty stack placeholder */
 .empty-stack {
-  width: calc(var(--stack-card-w) + 8px);
-  height: calc(var(--stack-card-h) + 20px);
+  width: var(--stack-card-w);
+  height: var(--stack-card-h);
   border: 2px dashed rgba(255,255,255,0.12);
   border-radius: var(--card-radius);
   display: flex;
@@ -463,8 +463,8 @@ body {
   flex-shrink: 0;
 }
 .mini-stack.empty-stack {
-  width: calc(var(--stack-card-w) + 8px);
-  height: calc(var(--stack-card-h) + 10px);
+  width: var(--stack-card-w);
+  height: var(--stack-card-h);
 }
 
 /* Stack count badge */
