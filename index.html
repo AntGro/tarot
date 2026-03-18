@@ -298,7 +298,7 @@ body {
 .opponent-stacks {
   display: flex;
   justify-content: center;
-  gap: 4px;
+  gap: calc(var(--card-w) * 0.20);
   flex-wrap: nowrap;
 }
 
@@ -354,12 +354,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: calc(var(--card-w) * 0.20);
 }
 .player-stacks {
   display: flex;
   justify-content: center;
-  gap: 2px;
+  gap: calc(var(--card-w) * 0.20);
   flex-wrap: nowrap;
 }
 .player-hand {
@@ -562,6 +562,11 @@ body {
   .room-code-display { font-size: 1.8rem; letter-spacing: 6px; }
   .center-zone { gap: 16px; min-height: 0; }
   .game-header { flex-direction: column; gap: 6px; text-align: center; }
+}
+@media (min-width: 1200px) {
+  .player-section { gap: calc(var(--card-w) * 0.25); }
+  .player-stacks { gap: calc(var(--card-w) * 0.25); }
+  .opponent-stacks { gap: calc(var(--card-w) * 0.25); }
 }
 
 /* Ultra-narrow: text-only cards (triggered by JS text-mode class) */
@@ -1440,8 +1445,10 @@ function resizeCards() {
     cardH = Math.round(cardW * ratio);
   }
 
-  // Also constrain so 7 stacks fit in one row
-  const maxStackCardW = Math.floor((vw - 20) / 7) - 6;
+  // Also constrain so 7 stacks fit in one row (accounting for 20% card-width gaps)
+  // Total width = 7 * (cardW + 4px) + 6 * (cardW * 0.2)
+  // vw - 20 >= 7 * cardW + 28 + 1.2 * cardW = 8.2 * cardW + 28
+  const maxStackCardW = Math.floor(((vw - 20) - 28) / 8.2);
   if (cardW > maxStackCardW) {
     cardW = Math.max(20, maxStackCardW);
     cardH = Math.round(cardW * ratio);
