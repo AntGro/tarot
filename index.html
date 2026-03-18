@@ -1436,7 +1436,7 @@ function resizeCards() {
   let cardW = Math.round(cardH / ratio);
 
   // Width-based constraint: all hand cards must fit in one row
-  // Cards overlap ~40%, so effective width per card ≈ cardW * 0.6
+  // Cards overlap 25-75%, step adapts to fit available width
   const availW = vw - 40; // padding
   const maxCardW = Math.floor(availW / (maxHandCards * 0.55));
   if (cardW > maxCardW) {
@@ -1729,9 +1729,12 @@ function renderFromState(state) {
   if (n > 0) {
     const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
     const availWidth = window.innerWidth - 20;
-    const minVisible = cardW * 0.30;
-    const idealStep = cardW * 0.35;
-    const step = n > 1 ? Math.max(minVisible, Math.min(idealStep, (availWidth - cardW) / (n - 1))) : 0;
+    // Overlap constraints: at least 25%, no more than 75%, as little overlap as possible
+    const minStep = cardW * 0.25;  // 75% overlap (max overlap)
+    const maxStep = cardW * 0.75;  // 25% overlap (min overlap)
+    // Ideal step: spread cards as much as possible (minimize overlap)
+    const idealStep = n > 1 ? (availWidth - cardW) / (n - 1) : maxStep;
+    const step = n > 1 ? Math.max(minStep, Math.min(maxStep, idealStep)) : 0;
     const totalWidth = cardW + (n - 1) * step;
     const startX = (availWidth - totalWidth) / 2;
 
