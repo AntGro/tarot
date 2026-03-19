@@ -1759,20 +1759,70 @@ function showGameOver() {
   const oScore = document.getElementById('opponent-score').textContent;
 
   const title = document.getElementById('game-over-title');
-  // Parse scores
-  const pMatch = pScore.match(/(\d+) pts/);
-  const oMatch = oScore.match(/(\d+) pts/);
+  // Parse scores and bouts
+  const pMatch = pScore.match(/(\d+) pts.*?(\d+) bout/);
+  const oMatch = oScore.match(/(\d+) pts.*?(\d+) bout/);
   const ps = pMatch ? parseInt(pMatch[1]) : 0;
+  const pb = pMatch ? parseInt(pMatch[2]) : 0;
   const os = oMatch ? parseInt(oMatch[1]) : 0;
+  const ob = oMatch ? parseInt(oMatch[2]) : 0;
 
-  if (ps > os) title.textContent = '🎉 Victoire !';
-  else if (os > ps) title.textContent = '😔 Défaite';
-  else title.textContent = '🤝 Égalité';
+  // Bout-based victory thresholds
+  const thresholds = { 0: 56, 1: 51, 2: 41, 3: 36 };
+  const pThreshold = thresholds[Math.min(pb, 3)] || 56;
+  const oThreshold = thresholds[Math.min(ob, 3)] || 56;
+  const pWins = ps >= pThreshold;
+  const oWins = os >= oThreshold;
+
+  let resultText, explanation;
+  if (pWins && !oWins) {
+    title.textContent = '🎉 Victoire !';
+    resultText = `Vous avez gagné avec ${ps} pts`;
+    explanation = `Avec ${pb} bout${pb > 1 ? 's' : ''}, il vous fallait ${pThreshold} pts pour gagner.`;
+  } else if (oWins && !pWins) {
+    title.textContent = '😔 Défaite';
+    resultText = `${oName} a gagné avec ${os} pts`;
+    explanation = `Avec ${ob} bout${ob > 1 ? 's' : ''}, il lui fallait ${oThreshold} pts pour gagner.`;
+  } else if (pWins && oWins) {
+    // Both reach threshold — higher score wins
+    if (ps > os) {
+      title.textContent = '🎉 Victoire !';
+      resultText = `Vous avez gagné avec ${ps} pts contre ${os}`;
+    } else if (os > ps) {
+      title.textContent = '😔 Défaite';
+      resultText = `${oName} a gagné avec ${os} pts contre ${ps}`;
+    } else {
+      title.textContent = '🤝 Égalité';
+      resultText = `Égalité à ${ps} pts`;
+    }
+    explanation = `Vous : ${pb} bout${pb > 1 ? 's' : ''} (seuil : ${pThreshold} pts) · ${oName} : ${ob} bout${ob > 1 ? 's' : ''} (seuil : ${oThreshold} pts)`;
+  } else {
+    // Neither reaches threshold — closer to threshold wins, or higher score
+    if (ps > os) {
+      title.textContent = '🎉 Victoire !';
+      resultText = `Vous avez gagné avec ${ps} pts`;
+    } else if (os > ps) {
+      title.textContent = '😔 Défaite';
+      resultText = `${oName} a gagné avec ${os} pts`;
+    } else {
+      title.textContent = '🤝 Égalité';
+      resultText = `Égalité à ${ps} pts`;
+    }
+    explanation = `Vous : ${pb} bout${pb > 1 ? 's' : ''} (seuil : ${pThreshold} pts) · ${oName} : ${ob} bout${ob > 1 ? 's' : ''} (seuil : ${oThreshold} pts)`;
+  }
+
+  // Threshold rule explanation
+  const ruleText = `<div style="margin-top:8px;font-size:0.7rem;opacity:0.7;">
+    Règle des bouts : 0 bout → 56 pts · 1 bout → 51 pts · 2 bouts → 41 pts · 3 bouts → 36 pts
+  </div>`;
 
   const breakdown = document.getElementById('score-breakdown');
   breakdown.innerHTML = `
     <div class="score-row"><span class="label">${pName}</span><span class="value">${pScore}</span></div>
     <div class="score-row"><span class="label">${oName}</span><span class="value">${oScore}</span></div>
+    <div style="margin-top:10px;font-size:0.8rem;text-align:center;">${resultText}</div>
+    <div style="margin-top:4px;font-size:0.75rem;opacity:0.8;text-align:center;">${explanation}</div>
+    ${ruleText}
   `;
 }
 
