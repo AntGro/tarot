@@ -273,8 +273,8 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 2px;
+  justify-content: center;
+  gap: calc(var(--card-w) * 0.20);
   overflow: hidden;
 }
 
@@ -1412,6 +1412,18 @@ function resizeCards() {
   const maxStackCardW = Math.floor(((vw - 20) - 28) / 7.6);
   if (cardW > maxStackCardW) {
     cardW = Math.max(20, maxStackCardW);
+    cardH = Math.round(cardW * ratio);
+  }
+
+  // Vertical constraint: everything must fit in viewport with proper gaps
+  // Layout: header(~40) + oppHand(cardH*0.5) + vgap + oppStacks(cardH+12) + vgap + center(cardH) + vgap + stacks(cardH+12) + vgap + hand(cardH+24) + padding(8)
+  // vgap = cardW * 0.20, need at least 4 vgaps
+  // Total = 40 + 0.5*cardH + cardH+12 + cardH + cardH+12 + cardH+24 + 4*(cardW*0.20) + 8
+  // = 96 + 4.5*cardH + 0.8*cardW = 96 + 4.5*cardH + 0.8*(cardH/ratio)
+  const headerAndPadding = 96;
+  const totalNeeded = () => headerAndPadding + 4.5 * cardH + 0.8 * (cardH / ratio);
+  while (totalNeeded() > vh && cardW > 20) {
+    cardW -= 1;
     cardH = Math.round(cardW * ratio);
   }
 
