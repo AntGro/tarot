@@ -273,8 +273,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: calc(var(--card-w) * 0.20);
+  justify-content: space-between;
   overflow: hidden;
 }
 
@@ -312,8 +311,10 @@ body {
   align-items: center;
   gap: 30px;
   padding: 4px 0;
+  padding-bottom: 26px; /* space for "Adversaire"/"Vous" labels */
   min-height: 0;
   flex-shrink: 1;
+  margin: calc(var(--card-w) * 0.20) 0;
 }
 .played-card-slot {
   width: var(--card-w);
@@ -1415,13 +1416,15 @@ function resizeCards() {
     cardH = Math.round(cardW * ratio);
   }
 
-  // Vertical constraint: everything must fit in viewport with proper gaps
-  // Layout: header(~40) + oppHand(cardH*0.5) + vgap + oppStacks(cardH+12) + vgap + center(cardH) + vgap + stacks(cardH+12) + vgap + hand(cardH+24) + padding(8)
-  // vgap = cardW * 0.20, need at least 4 vgaps
-  // Total = 40 + 0.5*cardH + cardH+12 + cardH + cardH+12 + cardH+24 + 4*(cardW*0.20) + 8
-  // = 96 + 4.5*cardH + 0.8*cardW = 96 + 4.5*cardH + 0.8*(cardH/ratio)
+  // Vertical constraint: everything must fit with minimum v-gaps
+  // Layout: header(~40) + oppHand(cardH*0.5) + vgap + oppStacks(cardH+12) + vgap + center(cardH+22labels) + vgap + stacks(cardH+12) + vgap + hand(cardH+24) + padding(8)
+  // minVgap = cardW * 0.20, need at least 4 minVgaps
   const headerAndPadding = 96;
-  const totalNeeded = () => headerAndPadding + 4.5 * cardH + 0.8 * (cardH / ratio);
+  const labelsHeight = 22; // "Adversaire" / "Vous" labels below played cards
+  const totalNeeded = () => {
+    const minVgap = cardW * 0.20;
+    return headerAndPadding + 0.5 * cardH + (cardH + 12) + (cardH + labelsHeight) + (cardH + 12) + (cardH + 24) + 4 * minVgap;
+  };
   while (totalNeeded() > vh && cardW > 20) {
     cardW -= 1;
     cardH = Math.round(cardW * ratio);
