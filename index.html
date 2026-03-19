@@ -1367,7 +1367,7 @@ function resizeCards() {
   const vw = window.innerWidth;
   const ratio = 1.845; // trump aspect ratio
   const maxHandCards = 11; // max cards in hand
-  const minReadableW = 32; // px — below this, cards get cropped instead of shrunk
+  const minReadableW = 25; // px — below this, cards get cropped instead of shrunk
 
   // Height-based sizing (fit vertically)
   const handH = Math.max(60, Math.min(240, vh * 0.28));
