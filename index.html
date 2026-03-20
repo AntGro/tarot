@@ -1443,9 +1443,12 @@ function showGameScreen() {
 // Deck system: alternate decks in images/decks/<name>/, fallback to default
 let currentDeck = localStorage.getItem('tarot-deck') || 'default';
 const deckCardCache = {}; // cache which deck cards exist
+let _deckVersion = 0; // increments on deck change to force re-render
+let _lastRenderedDeckVersion = 0;
 
 function setDeck(name) {
   currentDeck = name;
+  _deckVersion++;
   localStorage.setItem('tarot-deck', name);
   // Clear cache to re-check
   Object.keys(deckCardCache).forEach(k => delete deckCardCache[k]);
@@ -1494,7 +1497,7 @@ function getCardImagePath(c) {
   if (cacheKey in deckCardCache) return deckCardCache[cacheKey] ? deckPath : defaultPath;
   // Probe with Image object (async, but use default first time)
   const img = new Image();
-  img.onload = () => { deckCardCache[cacheKey] = true; if (_lastRenderedState) renderFromState(_lastRenderedState); };
+  img.onload = () => { deckCardCache[cacheKey] = true; _deckVersion++; if (_lastRenderedState) renderFromState(_lastRenderedState); };
   img.onerror = () => { deckCardCache[cacheKey] = false; };
   img.src = deckPath;
   return defaultPath; // default until probe completes
@@ -1734,6 +1737,8 @@ function renderFromState(state) {
       }
     });
 
+    const deckChanged = _deckVersion !== _lastRenderedDeckVersion;
+
     handCards.forEach((c, i) => {
       const cid = cardId(c);
       let wrapper = handDiv.querySelector(`.hand-card[data-card-id="${cid}"]`);
@@ -1748,6 +1753,9 @@ function renderFromState(state) {
         wrapper.setAttribute('data-card-id', cid);
         wrapper.innerHTML = renderCardHTML(c);
         handDiv.appendChild(wrapper);
+      } else if (deckChanged) {
+        // Deck changed — re-render card image
+        wrapper.innerHTML = renderCardHTML(c);
       }
 
       // Only touch DOM if values actually changed
@@ -1765,6 +1773,7 @@ function renderFromState(state) {
   } else {
     handDiv.innerHTML = '';
   }
+  _lastRenderedDeckVersion = _deckVersion;
 }
 
 /* ─── Play actions ─── */
