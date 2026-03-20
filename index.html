@@ -598,6 +598,14 @@ body {
     <input type="text" id="username-ai" placeholder="Votre pseudo" maxlength="20">
     <button class="btn btn-ai" onclick="startAI()">🤖 Partie solo</button>
   </div>
+
+  <div class="lobby-panel" style="margin-top:8px;">
+    <h2>Style des cartes</h2>
+    <select id="deck-picker" onchange="setDeck(this.value)" style="width:100%;padding:8px;border-radius:var(--panel-radius);border:1px solid var(--text);background:var(--panel-bg);color:var(--text);font-size:0.9rem;">
+      <option value="default">Classique (Grimaud)</option>
+      <option value="refn">Refn Neon</option>
+    </select>
+  </div>
 </div>
 
 <!-- ═══════════════════════ Game Screen ═══════════════════════ -->
@@ -1419,6 +1427,9 @@ function resizeCards() {
 let _lastRenderedState = null;
 window.addEventListener('resize', () => {
   resizeCards();
+// Set deck picker to saved value
+const dp = document.getElementById('deck-picker');
+if (dp) dp.value = currentDeck;
   if (_lastRenderedState) renderFromState(_lastRenderedState);
 });
 resizeCards();
@@ -1429,13 +1440,25 @@ function showGameScreen() {
   resizeCards();
 }
 
-function getCardImagePath(c) {
+// Deck system: alternate decks in images/decks/<name>/, fallback to default
+let currentDeck = localStorage.getItem('tarot-deck') || 'default';
+const deckCardCache = {}; // cache which deck cards exist
+
+function setDeck(name) {
+  currentDeck = name;
+  localStorage.setItem('tarot-deck', name);
+  // Clear cache to re-check
+  Object.keys(deckCardCache).forEach(k => delete deckCardCache[k]);
+  // Re-render if we have state
+  if (lastRenderedState) renderFromState(lastRenderedState);
+}
+
+function getDefaultCardPath(c) {
   if (c.type === CardType.FOOL) return 'images/trumps/TN-00.jpg';
   if (c.type === CardType.TRUMP) {
     const val = c.value < 10 ? '0' + c.value : String(c.value);
     return `images/trumps/TN-${val}.jpg`;
   }
-  // Simple card
   let val;
   if (c.value === 1) val = 'ace';
   else if (c.value <= 10) val = String(c.value);
@@ -1445,6 +1468,36 @@ function getCardImagePath(c) {
   else if (c.value === 14) val = 'king';
   const ext = (c.value === 12) ? 'jpeg' : 'png';
   return `images/${val}_of_${c.suit}.${ext}`;
+}
+
+function getDeckCardPath(c) {
+  if (currentDeck === 'default') return null;
+  // Only simple cards have deck variants for now
+  if (c.type !== CardType.SIMPLE) return null;
+  let val;
+  if (c.value === 1) val = 'ace';
+  else if (c.value <= 10) val = String(c.value);
+  else if (c.value === 11) val = 'jack';
+  else if (c.value === 12) val = 'knight';
+  else if (c.value === 13) val = 'queen';
+  else if (c.value === 14) val = 'king';
+  return `images/decks/${currentDeck}/${val}_of_${c.suit}.png`;
+}
+
+function getCardImagePath(c) {
+  const defaultPath = getDefaultCardPath(c);
+  if (currentDeck === 'default') return defaultPath;
+  const deckPath = getDeckCardPath(c);
+  if (!deckPath) return defaultPath;
+  // Check cache
+  const cacheKey = deckPath;
+  if (cacheKey in deckCardCache) return deckCardCache[cacheKey] ? deckPath : defaultPath;
+  // Probe with Image object (async, but use default first time)
+  const img = new Image();
+  img.onload = () => { deckCardCache[cacheKey] = true; if (lastRenderedState) renderFromState(lastRenderedState); };
+  img.onerror = () => { deckCardCache[cacheKey] = false; };
+  img.src = deckPath;
+  return defaultPath; // default until probe completes
 }
 
 function renderCardHTML(c) {
