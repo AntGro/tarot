@@ -50,3 +50,4 @@ The king_of_hearts establishes the visual standard:
 
 ## Existing Cards
 - king_of_hearts.png ✅
+- king_of_spades.png ✅

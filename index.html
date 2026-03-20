@@ -277,7 +277,7 @@ body {
 .opponent-card-back {
   width: calc(var(--card-w) * 0.5);
   height: calc(var(--card-h) * 0.5);
-  background: url('images/cardback.jpg') center/cover;
+  background: url('images/decks/grimaud/cardback.jpg') center/cover;
   border: 1px solid rgba(0,0,0,0.4);
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
@@ -390,7 +390,7 @@ body {
   height: var(--card-h);
   border-radius: var(--card-radius);
   border: 1px solid rgba(0,0,0,0.4);
-  background: url('images/cardback.jpg') top left / var(--card-img-w, 100%) var(--card-img-h, 100%) no-repeat;
+  background: url('images/decks/grimaud/cardback.jpg') top left / var(--card-img-w, 100%) var(--card-img-h, 100%) no-repeat;
   box-shadow: var(--card-shadow);
   position: relative;
   overflow: hidden;
@@ -480,7 +480,7 @@ body {
   position: absolute;
   width: var(--card-w);
   height: var(--card-h);
-  background: url('images/cardback.jpg') center/cover;
+  background: url('images/decks/grimaud/cardback.jpg') center/cover;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
@@ -602,7 +602,7 @@ body {
   <div class="lobby-panel" style="margin-top:8px;">
     <h2>Style des cartes</h2>
     <select id="deck-picker" onchange="setDeck(this.value)" style="width:100%;padding:8px;border-radius:var(--panel-radius);border:1px solid var(--text);background:var(--panel-bg);color:var(--text);font-size:0.9rem;">
-      <option value="default">Classique (Grimaud)</option>
+      <option value="grimaud">Classique (Grimaud)</option>
       <option value="refn">Refn Neon</option>
     </select>
   </div>
@@ -1427,10 +1427,6 @@ function resizeCards() {
 let _lastRenderedState = null;
 window.addEventListener('resize', () => {
   resizeCards();
-// Set deck picker to saved value
-const dp = document.getElementById('deck-picker');
-if (dp) dp.value = currentDeck;
-  if (_lastRenderedState) renderFromState(_lastRenderedState);
 });
 resizeCards();
 
@@ -1440,27 +1436,27 @@ function showGameScreen() {
   resizeCards();
 }
 
-// Deck system: alternate decks in images/decks/<name>/, fallback to default
-let currentDeck = localStorage.getItem('tarot-deck') || 'default';
+// Deck system: all cards live under images/decks/<name>/
+// Grimaud is the base deck with all cards; other decks fall back to grimaud for missing cards
+let currentDeck = localStorage.getItem('tarot-deck') || 'grimaud';
+if (currentDeck === 'default') currentDeck = 'grimaud'; // migrate old setting
 const deckCardCache = {}; // cache which deck cards exist
-let _deckVersion = 0; // increments on deck change to force re-render
+let _deckVersion = 0;
 let _lastRenderedDeckVersion = 0;
 
 function setDeck(name) {
   currentDeck = name;
   _deckVersion++;
   localStorage.setItem('tarot-deck', name);
-  // Clear cache to re-check
   Object.keys(deckCardCache).forEach(k => delete deckCardCache[k]);
-  // Re-render if we have state
   if (_lastRenderedState) renderFromState(_lastRenderedState);
 }
 
-function getDefaultCardPath(c) {
-  if (c.type === CardType.FOOL) return 'images/trumps/TN-00.jpg';
+function cardFileName(c) {
+  if (c.type === CardType.FOOL) return { path: 'trumps/TN-00', ext: 'jpg' };
   if (c.type === CardType.TRUMP) {
     const val = c.value < 10 ? '0' + c.value : String(c.value);
-    return `images/trumps/TN-${val}.jpg`;
+    return { path: `trumps/TN-${val}`, ext: 'jpg' };
   }
   let val;
   if (c.value === 1) val = 'ace';
@@ -1470,38 +1466,35 @@ function getDefaultCardPath(c) {
   else if (c.value === 13) val = 'queen';
   else if (c.value === 14) val = 'king';
   const ext = (c.value === 12) ? 'jpeg' : 'png';
-  return `images/${val}_of_${c.suit}.${ext}`;
+  return { path: `${val}_of_${c.suit}`, ext };
 }
 
-function getDeckCardPath(c) {
-  if (currentDeck === 'default') return null;
-  // Only simple cards have deck variants for now
-  if (c.type !== CardType.SIMPLE) return null;
-  let val;
-  if (c.value === 1) val = 'ace';
-  else if (c.value <= 10) val = String(c.value);
-  else if (c.value === 11) val = 'jack';
-  else if (c.value === 12) val = 'knight';
-  else if (c.value === 13) val = 'queen';
-  else if (c.value === 14) val = 'king';
-  return `images/decks/${currentDeck}/${val}_of_${c.suit}.png`;
+function deckPath(deck, c) {
+  const f = cardFileName(c);
+  return `images/decks/${deck}/${f.path}.${f.ext}`;
+}
+
+function grimaudPath(c) {
+  return deckPath('grimaud', c);
 }
 
 function getCardImagePath(c) {
-  const defaultPath = getDefaultCardPath(c);
-  if (currentDeck === 'default') return defaultPath;
-  const deckPath = getDeckCardPath(c);
-  if (!deckPath) return defaultPath;
-  // Check cache
-  const cacheKey = deckPath;
-  if (cacheKey in deckCardCache) return deckCardCache[cacheKey] ? deckPath : defaultPath;
-  // Probe with Image object (async, but use default first time)
+  const fallback = grimaudPath(c);
+  if (currentDeck === 'grimaud') return fallback;
+  const dp = deckPath(currentDeck, c);
+  const cacheKey = dp;
+  if (cacheKey in deckCardCache) return deckCardCache[cacheKey] ? dp : fallback;
+  // Probe async — show fallback until probe resolves
   const img = new Image();
   img.onload = () => { deckCardCache[cacheKey] = true; _deckVersion++; if (_lastRenderedState) renderFromState(_lastRenderedState); };
   img.onerror = () => { deckCardCache[cacheKey] = false; };
-  img.src = deckPath;
-  return defaultPath; // default until probe completes
+  img.src = dp;
+  return fallback;
 }
+
+// Set deck picker to saved value
+const dp = document.getElementById('deck-picker');
+if (dp) dp.value = currentDeck;
 
 function renderCardHTML(c) {
   if (c.hidden || c.faceDown) {
