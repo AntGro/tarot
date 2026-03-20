@@ -1450,7 +1450,7 @@ function setDeck(name) {
   // Clear cache to re-check
   Object.keys(deckCardCache).forEach(k => delete deckCardCache[k]);
   // Re-render if we have state
-  if (lastRenderedState) renderFromState(lastRenderedState);
+  if (_lastRenderedState) renderFromState(_lastRenderedState);
 }
 
 function getDefaultCardPath(c) {
@@ -1494,7 +1494,7 @@ function getCardImagePath(c) {
   if (cacheKey in deckCardCache) return deckCardCache[cacheKey] ? deckPath : defaultPath;
   // Probe with Image object (async, but use default first time)
   const img = new Image();
-  img.onload = () => { deckCardCache[cacheKey] = true; if (lastRenderedState) renderFromState(lastRenderedState); };
+  img.onload = () => { deckCardCache[cacheKey] = true; if (_lastRenderedState) renderFromState(_lastRenderedState); };
   img.onerror = () => { deckCardCache[cacheKey] = false; };
   img.src = deckPath;
   return defaultPath; // default until probe completes
