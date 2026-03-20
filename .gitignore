@@ -8,3 +8,5 @@
 !.gitignore
 !images/
 !images/**
+!scripts/
+!scripts/**
