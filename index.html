@@ -1449,7 +1449,43 @@ function setDeck(name) {
   _deckVersion++;
   localStorage.setItem('tarot-deck', name);
   Object.keys(deckCardCache).forEach(k => delete deckCardCache[k]);
-  if (_lastRenderedState) renderFromState(_lastRenderedState);
+  probeDeck(name).then(() => {
+    if (_lastRenderedState) renderFromState(_lastRenderedState);
+  });
+}
+
+// Pre-probe all possible card images for a deck so cache is warm before game starts
+function probeDeck(deck) {
+  if (deck === 'grimaud') return Promise.resolve();
+  const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+  const probes = [];
+  // Suit cards: ace through king
+  for (const suit of suits) {
+    for (let v = 1; v <= 14; v++) {
+      let val;
+      if (v === 1) val = 'ace';
+      else if (v <= 10) val = String(v);
+      else if (v === 11) val = 'jack';
+      else if (v === 12) val = 'knight';
+      else if (v === 13) val = 'queen';
+      else if (v === 14) val = 'king';
+      const ext = (v === 12) ? 'jpeg' : 'png';
+      const p = `images/decks/${deck}/${val}_of_${suit}.${ext}`;
+      probes.push(p);
+    }
+  }
+  // Trumps 0-21
+  for (let t = 0; t <= 21; t++) {
+    const tn = t < 10 ? '0' + t : String(t);
+    probes.push(`images/decks/${deck}/trumps/TN-${tn}.jpg`);
+  }
+  return Promise.all(probes.map(p => new Promise(resolve => {
+    if (p in deckCardCache) return resolve();
+    const img = new Image();
+    img.onload = () => { deckCardCache[p] = true; resolve(); };
+    img.onerror = () => { deckCardCache[p] = false; resolve(); };
+    img.src = p;
+  }))).then(() => { _deckVersion++; });
 }
 
 function cardFileName(c) {
@@ -1484,17 +1520,14 @@ function getCardImagePath(c) {
   const dp = deckPath(currentDeck, c);
   const cacheKey = dp;
   if (cacheKey in deckCardCache) return deckCardCache[cacheKey] ? dp : fallback;
-  // Probe async — show fallback until probe resolves
-  const img = new Image();
-  img.onload = () => { deckCardCache[cacheKey] = true; _deckVersion++; if (_lastRenderedState) renderFromState(_lastRenderedState); };
-  img.onerror = () => { deckCardCache[cacheKey] = false; };
-  img.src = dp;
+  // Cache miss (shouldn't happen after probeDeck, but fallback gracefully)
   return fallback;
 }
 
-// Set deck picker to saved value
-const dp = document.getElementById('deck-picker');
-if (dp) dp.value = currentDeck;
+// Set deck picker to saved value and pre-probe
+const dpEl = document.getElementById('deck-picker');
+if (dpEl) dpEl.value = currentDeck;
+if (currentDeck !== 'grimaud') probeDeck(currentDeck);
 
 function renderCardHTML(c) {
   if (c.hidden || c.faceDown) {
