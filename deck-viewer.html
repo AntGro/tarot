@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tarot — Visualiseur de decks</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23234d20'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='gold'>♠</text></svg>">
+<style>
+:root {
+  --felt: #1a472a;
+  --felt-light: #1e5631;
+  --felt-dark: #0f2b18;
+  --gold: #d4af37;
+  --gold-dim: #8b7023;
+  --card-radius: 8px;
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  --font: 'Segoe UI', system-ui, sans-serif;
+  --text: #e8e0d0;
+  --text-dim: #a09880;
+  --panel-bg: rgba(0,0,0,0.35);
+  --panel-radius: 12px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--felt);
+  background-image:
+    radial-gradient(ellipse at 50% 0%, var(--felt-light) 0%, transparent 70%),
+    radial-gradient(ellipse at 50% 100%, var(--felt-dark) 0%, transparent 70%);
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* ===== Header ===== */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid rgba(212,175,55,0.2);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header h1 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color 0.2s;
+}
+.header a:hover { color: var(--gold); }
+
+select {
+  padding: 8px 14px;
+  background: var(--felt-dark);
+  color: var(--text);
+  border: 1px solid rgba(212,175,55,0.3);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+select:focus { border-color: var(--gold); }
+
+/* ===== Stats bar ===== */
+.stats-bar {
+  display: flex;
+  gap: 24px;
+  padding: 10px 24px;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid rgba(212,175,55,0.1);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.stats-bar .stat-val { color: var(--gold); font-weight: 600; }
+
+/* ===== Main content ===== */
+.main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+/* ===== Section ===== */
+.section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(212,175,55,0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ===== Card grid ===== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+}
+
+.card-slot {
+  position: relative;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  aspect-ratio: 400 / 738;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-slot:hover {
+  transform: scale(1.08);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 10;
+}
+
+.card-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-slot .card-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 6px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
+  font-size: 0.65rem;
+  color: var(--text);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.card-slot:hover .card-label { opacity: 1; }
+
+.card-slot .fallback-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0,0,0,0.7);
+  color: var(--text-dim);
+  font-size: 0.55rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* ===== Lightbox ===== */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.lightbox.active { display: flex; }
+.lightbox img {
+  max-height: 90vh;
+  max-width: 90vw;
+  border-radius: 12px;
+  box-shadow: 0 0 40px rgba(212,175,55,0.2);
+}
+.lightbox .card-name {
+  position: absolute;
+  bottom: 20px;
+  color: var(--text);
+  font-size: 1rem;
+  background: rgba(0,0,0,0.6);
+  padding: 6px 16px;
+  border-radius: 8px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 600px) {
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+  .header { padding: 12px 16px; }
+  .main { padding: 16px; }
+  .stats-bar { padding: 8px 16px; gap: 16px; flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🃏 Visualiseur de Decks</h1>
+  <div class="header-controls">
+    <select id="deckPicker" onchange="switchDeck(this.value)">
+      <option value="grimaud">Classique (Grimaud)</option>
+      <option value="refn">Refn Neon</option>
+    </select>
+    <a href="index.html">← Retour au jeu</a>
+  </div>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="main" id="mainContent"></div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+  <div class="card-name" id="lightboxName"></div>
+</div>
+
+<script>
+// ===================================================================
+// CARD DEFINITIONS
+// ===================================================================
+const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+const SUIT_SYMBOLS = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+const SUIT_NAMES = { hearts: 'Cœur', diamonds: 'Carreau', clubs: 'Trèfle', spades: 'Pique' };
+const FACE_NAMES = { jack: 'Valet', knight: 'Cavalier', queen: 'Dame', king: 'Roi' };
+
+function buildAllCards() {
+  const cards = [];
+
+  // Suit cards
+  for (const suit of SUITS) {
+    // Ace
+    cards.push({
+      id: `ace_of_${suit}`,
+      name: `As de ${SUIT_NAMES[suit]}`,
+      section: `suit-${suit}`,
+      path: `ace_of_${suit}`,
+      ext: 'png'
+    });
+    // 2-10
+    for (let v = 2; v <= 10; v++) {
+      cards.push({
+        id: `${v}_of_${suit}`,
+        name: `${v} de ${SUIT_NAMES[suit]}`,
+        section: `suit-${suit}`,
+        path: `${v}_of_${suit}`,
+        ext: 'png'
+      });
+    }
+    // Face cards
+    for (const face of ['jack', 'knight', 'queen', 'king']) {
+      const ext = face === 'knight' ? 'jpeg' : 'png';
+      cards.push({
+        id: `${face}_of_${suit}`,
+        name: `${FACE_NAMES[face]} de ${SUIT_NAMES[suit]}`,
+        section: `suit-${suit}`,
+        path: `${face}_of_${suit}`,
+        ext
+      });
+    }
+  }
+
+  // Trumps 1-21
+  for (let t = 1; t <= 21; t++) {
+    const num = t < 10 ? '0' + t : String(t);
+    cards.push({
+      id: `trump_${t}`,
+      name: `Atout ${t}`,
+      section: 'trumps',
+      path: `trumps/TN-${num}`,
+      ext: 'jpg'
+    });
+  }
+
+  // Excuse
+  cards.push({
+    id: 'excuse',
+    name: 'L\'Excuse',
+    section: 'excuse',
+    path: 'trumps/TN-00',
+    ext: 'jpg'
+  });
+
+  return cards;
+}
+
+const ALL_CARDS = buildAllCards();
+
+// ===================================================================
+// DECK PROBE
+// ===================================================================
+let currentDeck = 'grimaud';
+const probeCache = {}; // deck -> { cardId -> true/false }
+
+function probeImage(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+}
+
+async function probeDeck(deck) {
+  if (probeCache[deck]) return probeCache[deck];
+  const results = {};
+  const promises = ALL_CARDS.map(async card => {
+    const src = `images/decks/${deck}/${card.path}.${card.ext}`;
+    results[card.id] = await probeImage(src);
+  });
+  await Promise.all(promises);
+  probeCache[deck] = results;
+  return results;
+}
+
+function getCardSrc(card, deck) {
+  return `images/decks/${deck}/${card.path}.${card.ext}`;
+}
+
+function getDisplaySrc(card) {
+  if (currentDeck === 'grimaud') return getCardSrc(card, 'grimaud');
+  const available = probeCache[currentDeck];
+  if (available && available[card.id]) return getCardSrc(card, currentDeck);
+  return getCardSrc(card, 'grimaud');
+}
+
+function isFallback(card) {
+  if (currentDeck === 'grimaud') return false;
+  const available = probeCache[currentDeck];
+  return !(available && available[card.id]);
+}
+
+// ===================================================================
+// RENDER
+// ===================================================================
+const SECTIONS = [
+  { id: 'suit-hearts', title: '♥ Cœur', icon: '♥' },
+  { id: 'suit-diamonds', title: '♦ Carreau', icon: '♦' },
+  { id: 'suit-clubs', title: '♣ Trèfle', icon: '♣' },
+  { id: 'suit-spades', title: '♠ Pique', icon: '♠' },
+  { id: 'trumps', title: '🎴 Atouts', icon: '🎴' },
+  { id: 'excuse', title: '🃏 Excuse', icon: '🃏' },
+];
+
+function renderDeck() {
+  const main = document.getElementById('mainContent');
+  let nativeCount = 0;
+  let fallbackCount = 0;
+
+  let html = '';
+  for (const section of SECTIONS) {
+    const sectionCards = ALL_CARDS.filter(c => c.section === section.id);
+    html += `<div class="section">`;
+    html += `<div class="section-title">${section.title} <span style="font-size:0.75rem;color:var(--text-dim);font-weight:400;">(${sectionCards.length} cartes)</span></div>`;
+    html += `<div class="card-grid">`;
+    for (const card of sectionCards) {
+      const src = getDisplaySrc(card);
+      const fb = isFallback(card);
+      if (fb) fallbackCount++; else nativeCount++;
+      html += `<div class="card-slot" onclick="openLightbox('${src}','${card.name.replace(/'/g, "\\'")}')">`;
+      html += `<img src="${src}" alt="${card.name}" loading="lazy">`;
+      if (fb) html += `<span class="fallback-badge">grimaud</span>`;
+      html += `<div class="card-label">${card.name}</div>`;
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  }
+  main.innerHTML = html;
+
+  // Stats
+  const total = ALL_CARDS.length;
+  document.getElementById('statsBar').innerHTML = `
+    <span><span class="stat-val">${total}</span> cartes au total</span>
+    <span><span class="stat-val">${nativeCount}</span> cartes du deck</span>
+    ${currentDeck !== 'grimaud' ? `<span><span class="stat-val">${fallbackCount}</span> cartes Grimaud (fallback)</span>` : ''}
+    <span>Deck: <span class="stat-val">${currentDeck === 'grimaud' ? 'Classique (Grimaud)' : currentDeck.charAt(0).toUpperCase() + currentDeck.slice(1)}</span></span>
+  `;
+}
+
+// ===================================================================
+// DECK SWITCH
+// ===================================================================
+async function switchDeck(deck) {
+  currentDeck = deck;
+  if (deck !== 'grimaud') await probeDeck(deck);
+  renderDeck();
+}
+
+// ===================================================================
+// LIGHTBOX
+// ===================================================================
+function openLightbox(src, name) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightboxName').textContent = name;
+  lb.classList.add('active');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
+
+// ===================================================================
+// INIT
+// ===================================================================
+(async function init() {
+  await probeDeck('grimaud');
+  renderDeck();
+})();
+</script>
+</body>
+</html>

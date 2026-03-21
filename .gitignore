@@ -1,6 +1,7 @@
 # Only allow project files
 *
 !index.html
+!deck-viewer.html
 !README.md
 !LICENSE
 !sitemap.xml
