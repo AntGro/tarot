@@ -2,38 +2,35 @@
 """
 Deck Creator Pipeline — Full Tarot Deck Generation
 
-Provides functions for each step of creating a complete 78-card Tarot deck:
+Card types:
 - 40 low-value simple cards (1-10 × 4 suits)
-- 16 high-value simple cards (V/C/D/R × 4 suits)
+- 16 high-value face cards (V/C/D/R × 4 suits)
 - 21 trumps (atouts)
 - 1 excuse (joker)
 
-Usage:
-    from deck_pipeline import DeckCreator
-    dc = DeckCreator(deck_name="refn", card_width=400, card_height=738)
-    
-    # Step 1: Design border
-    dc.apply_border(card_image, border_image)
-    
-    # Step 2: Simple card backgrounds
-    dc.assemble_background(top_half_bg)
-    
-    # Step 3: Place symbols on low-value cards
-    dc.assemble_low_value(suit, value, background, symbol, border)
-    
-    # Step 4: Assemble high-value cards
-    dc.assemble_high_value(suit, rank, garment, head, letter_symbol, border)
-    
-    # Step 5: Assemble trumps
-    dc.assemble_trump(number, top_image, bottom_image, number_ornament, border)
-    
-    # Step 6: Assemble excuse
-    dc.assemble_excuse(joker_image, background, border)
+PIPELINE RULES:
+1. ALL simple cards (low + high value) share ONE background.
+   Background asset = top-half only → mirrored for 180° rotational symmetry.
+2. Face cards: single figure with TRANSPARENT background (complete character).
+   Asset = top-half figure only → mirrored programmatically.
+3. Excuse/joker asset = top-half figure only → mirrored programmatically.
+4. Trump number ornaments at TOP and BOTTOM (Grimaud style), NOT center band.
+5. Trump top & bottom illustrations: same size (each half card height).
+6. Stack order for simple cards: background → border → symbols/figures → corners.
+   Corners (letters/numbers) are ON TOP of the border.
+7. Low-value symbol directions: upward in top half, downward in bottom half,
+   upward on the horizontal middle line.
 """
 
 import argparse
 import os
 from PIL import Image, ImageDraw, ImageFont
+
+try:
+    from rembg import remove as remove_bg
+    HAS_REMBG = True
+except ImportError:
+    HAS_REMBG = False
 
 # Card dimensions
 DEFAULT_WIDTH = 400
@@ -72,342 +69,405 @@ class DeckCreator:
         os.makedirs(self.deck_dir, exist_ok=True)
 
     # ─────────────────────────────────────────────
-    # STEP 1: Border overlay
+    # UTILITY: Remove background from AI-generated images
+    # Used for figure cards and joker — imagine can't generate
+    # transparent backgrounds natively, so we use rembg.
     # ─────────────────────────────────────────────
 
-    def apply_border(self, card_img_path, border_img_path, output_path):
+    @staticmethod
+    def remove_background(input_path, output_path=None):
         """
-        Overlay a border frame (PNG with transparent center) onto a card image.
-        Border image must be same dimensions as card (w × h).
+        Remove background from an image, producing RGBA with transparency.
+        Requires rembg (pip install rembg onnxruntime).
+        
+        Args:
+            input_path: source image (any format)
+            output_path: where to save (PNG). If None, overwrites input.
+        
+        Returns:
+            PIL Image in RGBA mode
         """
-        card = Image.open(card_img_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
-        border = Image.open(border_img_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
-        result = Image.alpha_composite(card, border)
-        result.save(output_path)
-        print(f"✅ Border applied: {output_path}")
+        if not HAS_REMBG:
+            raise ImportError("rembg not installed. Run: pip install rembg onnxruntime")
+        
+        img = Image.open(input_path).convert("RGBA")
+        result = remove_bg(img)
+        
+        save_path = output_path or input_path
+        # Ensure PNG extension for transparency
+        if not save_path.lower().endswith('.png'):
+            save_path = os.path.splitext(save_path)[0] + '.png'
+        result.save(save_path)
+        print(f"✅ Background removed: {save_path}")
         return result
 
     # ─────────────────────────────────────────────
-    # STEP 2: Background assembly (top → mirror → full)
+    # STEP 1: Background assembly (top-half → mirror → full)
+    # ONE background for ALL simple cards (low + high value)
+    # Asset must be top-half only.
     # ─────────────────────────────────────────────
 
     def assemble_background(self, top_half_path, output_path):
         """
-        Create a full card background from a top-half image.
-        Crops to top 50%, rotates 180°, stacks with smooth middle transition.
+        Create a full card background from a TOP-HALF-ONLY image.
+        The asset IS the top half — we mirror it 180° for the bottom.
         """
-        img = Image.open(top_half_path).convert("RGBA")
-        w, h = img.size
-        mid = h // 2
+        top = Image.open(top_half_path).convert("RGBA")
+        tw, th = top.size
 
-        top = img.crop((0, 0, w, mid))
+        # The asset is the top half — resize to card width × half height
+        top = top.resize((self.w, self.h // 2), Image.LANCZOS)
         bottom = top.rotate(180)
 
-        full = Image.new("RGBA", (w, h))
+        full = Image.new("RGBA", (self.w, self.h))
         full.paste(top, (0, 0))
-        full.paste(bottom, (0, mid))
+        full.paste(bottom, (0, self.h // 2))
 
         # Blend the seam (4px gradient at the middle)
+        mid = self.h // 2
         blend_zone = 4
-        for y in range(max(0, mid - blend_zone), min(h, mid + blend_zone)):
+        for y in range(max(0, mid - blend_zone), min(self.h, mid + blend_zone)):
             alpha = (y - (mid - blend_zone)) / (2 * blend_zone)
-            for x in range(w):
+            for x in range(self.w):
                 top_px = top.getpixel((x, min(y, mid - 1)))
                 bot_px = bottom.getpixel((x, max(y - mid, 0)))
                 blended = tuple(int(top_px[c] * (1 - alpha) + bot_px[c] * alpha) for c in range(4))
                 full.putpixel((x, y), blended)
 
-        full = full.resize((self.w, self.h), Image.LANCZOS)
         full.save(output_path)
         print(f"✅ Background assembled: {output_path}")
         return full
 
     # ─────────────────────────────────────────────
-    # STEP 3(i): Suit symbol on transparent background
+    # STEP 2: Border (transparent-center frame)
     # ─────────────────────────────────────────────
 
-    @staticmethod
-    def load_symbol(symbol_path):
-        """Load a suit symbol image (PNG with transparent background)."""
-        return Image.open(symbol_path).convert("RGBA")
+    def load_border(self, border_path):
+        """Load and resize border to card dimensions."""
+        if not border_path:
+            return None
+        return Image.open(border_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
 
     # ─────────────────────────────────────────────
-    # STEP 3(ii): Low-value card assembly (1-10)
+    # STEP 3: Low-value card assembly (1-10)
+    #
+    # Stack: background → border → suit symbols → corner numbers
+    # Symbol directions: upward top half, downward bottom half,
+    #                    upward on the middle horizontal line.
     # ─────────────────────────────────────────────
 
     def assemble_low_value(self, suit, value, background_path, symbol_path,
                            border_path, output_path):
         """
-        Create a low-value card (1-10) by placing suit symbols in standard positions.
-        
-        Layout follows French Tarot conventions:
-        - Corner: value number + small suit symbol (top-left, bottom-right rotated)
-        - Center: suit symbols arranged in standard patterns
+        Create a low-value card (1-10).
+        Stack order: background → border → symbols → corners (on top of border).
         """
-        bg = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+        # Layer 1: Background
+        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+
+        # Layer 2: Border
+        border = self.load_border(border_path)
+        if border:
+            card = Image.alpha_composite(card, border)
+
+        # Layer 3: Suit symbols at standard positions
         symbol = Image.open(symbol_path).convert("RGBA")
-
-        # Corner symbol (small)
-        corner_sym = symbol.resize((28, 28), Image.LANCZOS)
-
-        # Center symbol (medium)
         center_size = int(self.w * 0.12)
         center_sym = symbol.resize((center_size, center_size), Image.LANCZOS)
+        center_sym_down = center_sym.rotate(180)
 
-        # Get standard positions for this value
         positions = self._get_symbol_positions(value, center_size)
+        for x, y, direction in positions:
+            # direction: "up" or "down"
+            s = center_sym_down if direction == "down" else center_sym
+            card.paste(s, (x, y), s)
 
-        # Place center symbols
-        for x, y, rotated in positions:
-            s = center_sym.rotate(180) if rotated else center_sym
-            bg.paste(s, (x, y), s)
+        # Layer 4: Corner value + symbol (ON TOP of border)
+        corner_sym = symbol.resize((28, 28), Image.LANCZOS)
+        card = self._add_corners(card, str(value), corner_sym, suit)
 
-        # Add corner value + symbol
-        bg = self._add_corners(bg, str(value), corner_sym, suit)
-
-        # Apply border
-        if border_path:
-            border = Image.open(border_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
-            bg = Image.alpha_composite(bg, border)
-
-        # Mirror bottom half for rotational symmetry
-        bg = self._apply_rotational_symmetry(bg)
-
-        bg.save(output_path)
+        card.save(output_path)
         print(f"✅ {value} of {suit}: {output_path}")
-        return bg
+        return card
 
     def _get_symbol_positions(self, value, sym_size):
         """
-        Standard French card symbol positions for values 1-10.
-        Returns list of (x, y, is_rotated) tuples.
-        Center column: x = w/2 - sym_size/2
+        Grimaud-standard French Tarot symbol positions for values 1-10.
+        Returns list of (x, y, direction) where direction is "up" or "down".
+
+        Layout reference: Standard Grimaud French playing cards.
+        - Two columns (left/right) at ~27% from edges
+        - Center column for odd extras
+        - 180° rotational symmetry (top ↔ bottom)
+        - Top half: "up", Bottom half: "down", Middle line: "up"
+
+        Card proportions based on 400×738 (standard French Tarot ratio).
+        All positions account for corner labels (~12% top/bottom margin).
         """
         cx = self.w // 2 - sym_size // 2
-        margin_x = int(self.w * 0.22)
-        lx = margin_x
-        rx = self.w - margin_x - sym_size
+        # Two columns — Grimaud uses ~27% inset from card edge
+        col_inset = int(self.w * 0.27)
+        lx = col_inset - sym_size // 2
+        rx = self.w - col_inset - sym_size // 2
 
-        # Vertical positions (top half only, bottom half is mirrored)
-        top_y = int(self.h * 0.08)
-        mid_top_y = int(self.h * 0.22)
-        mid_y = int(self.h * 0.36)
-        center_y = self.h // 2 - sym_size // 2
+        # Vertical rows — measured from Grimaud reference cards
+        # Row positions as fraction of card height (from top edge)
+        # Corner area ends at ~12%, playable area ~12%-88%
+        r1 = int(self.h * 0.13)   # Row 1: top
+        r2 = int(self.h * 0.26)   # Row 2: upper-mid
+        r3 = int(self.h * 0.39)   # Row 3: upper-center
+        mid = self.h // 2 - sym_size // 2  # Exact middle
+        r5 = self.h - int(self.h * 0.39) - sym_size  # Row 5: lower-center (mirror r3)
+        r6 = self.h - int(self.h * 0.26) - sym_size  # Row 6: lower-mid (mirror r2)
+        r7 = self.h - int(self.h * 0.13) - sym_size  # Row 7: bottom (mirror r1)
+
+        # Between rows for 7/8/10 extra symbols
+        r1_2 = int(self.h * 0.195)  # Between r1 and r2
+        r6_7 = self.h - int(self.h * 0.195) - sym_size  # Mirror of r1_2
 
         layouts = {
-            1: [(cx, center_y, False)],
-            2: [(cx, top_y, False), (cx, self.h - top_y - sym_size, True)],
-            3: [(cx, top_y, False), (cx, center_y, False), (cx, self.h - top_y - sym_size, True)],
-            4: [(lx, top_y, False), (rx, top_y, False),
-                (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
-            5: [(lx, top_y, False), (rx, top_y, False), (cx, center_y, False),
-                (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
-            6: [(lx, top_y, False), (rx, top_y, False),
-                (lx, center_y, False), (rx, center_y, False),
-                (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
-            7: [(lx, top_y, False), (rx, top_y, False),
-                (lx, center_y, False), (rx, center_y, False),
-                (cx, mid_top_y, False),
-                (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
-            8: [(lx, top_y, False), (rx, top_y, False),
-                (lx, center_y, False), (rx, center_y, False),
-                (cx, mid_top_y, False), (cx, self.h - mid_top_y - sym_size, True),
-                (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
-            9: [(lx, top_y, False), (rx, top_y, False),
-                (lx, mid_top_y, False), (rx, mid_top_y, False),
-                (cx, center_y, False),
-                (lx, self.h - mid_top_y - sym_size, True), (rx, self.h - mid_top_y - sym_size, True),
-                (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
-            10: [(lx, top_y, False), (rx, top_y, False),
-                 (lx, mid_top_y, False), (rx, mid_top_y, False),
-                 (cx, int(self.h * 0.15), False), (cx, self.h - int(self.h * 0.15) - sym_size, True),
-                 (lx, self.h - mid_top_y - sym_size, True), (rx, self.h - mid_top_y - sym_size, True),
-                 (lx, self.h - top_y - sym_size, True), (rx, self.h - top_y - sym_size, True)],
+            # Ace: single large centered symbol (handled by caller or here as regular)
+            1: [(cx, mid, "up")],
+
+            # 2: one top, one bottom (center column)
+            2: [(cx, r1, "up"),
+                (cx, r7, "down")],
+
+            # 3: top, middle, bottom (center column)
+            3: [(cx, r1, "up"),
+                (cx, mid, "up"),
+                (cx, r7, "down")],
+
+            # 4: 2×2 grid
+            4: [(lx, r1, "up"), (rx, r1, "up"),
+                (lx, r7, "down"), (rx, r7, "down")],
+
+            # 5: 2×2 + center
+            5: [(lx, r1, "up"), (rx, r1, "up"),
+                (cx, mid, "up"),
+                (lx, r7, "down"), (rx, r7, "down")],
+
+            # 6: 2×3 grid (three rows of two)
+            6: [(lx, r1, "up"), (rx, r1, "up"),
+                (lx, mid, "up"), (rx, mid, "up"),
+                (lx, r7, "down"), (rx, r7, "down")],
+
+            # 7: like 6 but with one extra centered between r1 and mid
+            7: [(lx, r1, "up"), (rx, r1, "up"),
+                (cx, r1_2, "up"),
+                (lx, mid, "up"), (rx, mid, "up"),
+                (lx, r7, "down"), (rx, r7, "down")],
+
+            # 8: like 6 but with two extras centered (one upper, one lower)
+            8: [(lx, r1, "up"), (rx, r1, "up"),
+                (cx, r1_2, "up"),
+                (lx, mid, "up"), (rx, mid, "up"),
+                (cx, r6_7, "down"),
+                (lx, r7, "down"), (rx, r7, "down")],
+
+            # 9: 3×3 + center column gaps filled
+            9: [(lx, r1, "up"), (rx, r1, "up"),
+                (lx, r2, "up"), (rx, r2, "up"),
+                (cx, mid, "up"),
+                (lx, r6, "down"), (rx, r6, "down"),
+                (lx, r7, "down"), (rx, r7, "down")],
+
+            # 10: like 9 but with two extras centered between rows
+            10: [(lx, r1, "up"), (rx, r1, "up"),
+                 (cx, r1_2, "up"),
+                 (lx, r2, "up"), (rx, r2, "up"),
+                 (lx, r6, "down"), (rx, r6, "down"),
+                 (cx, r6_7, "down"),
+                 (lx, r7, "down"), (rx, r7, "down")],
         }
         return layouts.get(value, [])
 
     # ─────────────────────────────────────────────
-    # STEP 3(iii): High-value card assembly (V/C/D/R)
+    # STEP 4: High-value face card assembly (V/C/D/R)
+    #
+    # Asset: single figure image with TRANSPARENT background.
+    #        Asset is the TOP-HALF of the figure → mirrored for bottom.
+    # Stack: background → border → figure (mirrored) → corner letters
+    # Uses the SAME background as low-value cards.
     # ─────────────────────────────────────────────
 
-    def assemble_high_value(self, suit, rank, garment_path, head_path,
-                            border_path, output_path, head_position=None):
+    def assemble_high_value(self, suit, rank, figure_top_path,
+                            background_path, border_path, output_path):
         """
         Assemble a high-value face card.
         
         Args:
-            suit: hearts/diamonds/clubs/spades
-            rank: valet/knight/queen/king
-            garment_path: PNG with transparent head area and transparent background
-            head_path: PNG of the character's head
-            border_path: PNG border with transparent center
-            output_path: where to save the final card
-            head_position: (x, y) tuple for head placement, or None for auto-center top
+            figure_top_path: TOP-HALF of the figure (transparent bg).
+                             This is a complete character from waist up —
+                             NOT separate garment + head.
+                             Mirrored 180° for the bottom half.
+            background_path: shared background (same as low-value cards)
+            border_path: card border
+            output_path: where to save
+        
+        Stack: background → border → figure (mirrored) → corners
         """
-        # Load garment (transparent bg + head placeholder)
-        garment = Image.open(garment_path).convert("RGBA")
-        gw, gh = garment.size
+        # Layer 1: Shared background
+        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
 
-        # Load head
-        head = Image.open(head_path).convert("RGBA")
+        # Layer 2: Border
+        border = self.load_border(border_path)
+        if border:
+            card = Image.alpha_composite(card, border)
 
-        # Auto-detect head position if not specified (center-top of garment)
-        if head_position is None:
-            hx = (gw - head.width) // 2
-            hy = int(gh * 0.02)  # near top
-        else:
-            hx, hy = head_position
+        # Layer 3: Figure (asset IS the top half, mirror for bottom)
+        top_figure = Image.open(figure_top_path).convert("RGBA")
+        fw, fh = top_figure.size
+        bottom_figure = top_figure.rotate(180)
 
-        # Composite head onto garment
-        top_half = Image.new("RGBA", (gw, gh), (0, 0, 0, 0))
-        top_half.paste(garment, (0, 0), garment)
-        top_half.paste(head, (hx, hy), head)
+        full_figure = Image.new("RGBA", (fw, fh * 2), (0, 0, 0, 0))
+        full_figure.paste(top_figure, (0, 0))
+        full_figure.paste(bottom_figure, (0, fh))
 
-        # Crop to top half
-        top_crop = top_half.crop((0, 0, gw, gh // 2))
+        # Resize figure to fit within card (with margin)
+        margin = int(self.w * 0.06)
+        fig_w = self.w - 2 * margin
+        fig_h = int(fig_w * (fh * 2) / fw)
+        if fig_h > self.h - 2 * margin:
+            fig_h = self.h - 2 * margin
+            fig_w = int(fig_h * fw / (fh * 2))
+        full_figure = full_figure.resize((fig_w, fig_h), Image.LANCZOS)
 
-        # Rotate 180° for bottom half
-        bottom_crop = top_crop.rotate(180)
+        fx = (self.w - fig_w) // 2
+        fy = (self.h - fig_h) // 2
+        card.paste(full_figure, (fx, fy), full_figure)
 
-        # Stack
-        full = Image.new("RGBA", (gw, gh))
-        full.paste(top_crop, (0, 0))
-        full.paste(bottom_crop, (0, gh // 2))
-
-        # Resize to card dimensions
-        full = full.resize((self.w, self.h), Image.LANCZOS)
-
-        # Add corner letter + suit symbol
+        # Layer 4: Corner letter + suit (ON TOP of border)
         letter = HIGH_RANKS[rank]
-        corner_sym_size = 28
-        # We need the suit symbol for corners — generate a simple one
-        full = self._add_corners_text(full, letter, suit)
+        card = self._add_corners_text(card, letter, suit)
 
-        # Apply border
-        if border_path:
-            border = Image.open(border_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
-            full = Image.alpha_composite(full, border)
-
-        full.save(output_path)
+        card.save(output_path)
         print(f"✅ {rank} of {suit}: {output_path}")
-        return full
+        return card
 
     # ─────────────────────────────────────────────
-    # STEP 4: Trump (atout) assembly
+    # STEP 5: Trump (atout) assembly
+    #
+    # Top and bottom illustrations: SAME SIZE.
+    # Number ornaments at TOP and BOTTOM (Grimaud style),
+    # NOT in a center band.
     # ─────────────────────────────────────────────
 
     def assemble_trump(self, number, top_image_path, bottom_image_path,
                        number_ornament_path, border_path, output_path):
         """
         Assemble a trump card.
-        
-        Args:
-            number: 1-21
-            top_image_path: main illustration (top portion)
-            bottom_image_path: main illustration (bottom portion), or None to mirror top
-            number_ornament_path: decorative number frame/ornament (transparent PNG)
-            border_path: card border
-            output_path: where to save
+
+        Top and bottom illustrations have the SAME size.
+        Number ornaments are placed at TOP and BOTTOM of the card
+        (Grimaud style), overlaid on the illustrations.
+        If bottom_image_path is None, top is mirrored for bottom.
         """
+        # Each illustration takes half the card
+        illustration_h = self.h // 2
+
         # Load top image
         top_img = Image.open(top_image_path).convert("RGBA")
+        top_img = top_img.resize((self.w, illustration_h), Image.LANCZOS)
 
         if bottom_image_path:
             bottom_img = Image.open(bottom_image_path).convert("RGBA")
+            bottom_img = bottom_img.resize((self.w, illustration_h), Image.LANCZOS)
         else:
-            # Mirror top for bottom
             bottom_img = top_img.rotate(180)
 
         # Create canvas
         canvas = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
 
-        # Place top image (upper 45%)
-        top_zone_h = int(self.h * 0.45)
-        top_resized = top_img.resize((self.w, top_zone_h), Image.LANCZOS)
-        canvas.paste(top_resized, (0, 0))
+        # Place illustrations (top + bottom, full card)
+        canvas.paste(top_img, (0, 0))
+        canvas.paste(bottom_img, (0, illustration_h))
 
-        # Place bottom image (lower 45%, rotated)
-        bottom_zone_y = int(self.h * 0.55)
-        bottom_resized = bottom_img.resize((self.w, self.h - bottom_zone_y), Image.LANCZOS)
-        canvas.paste(bottom_resized, (0, bottom_zone_y))
+        # Apply border
+        border = self.load_border(border_path)
+        if border:
+            canvas = Image.alpha_composite(canvas, border)
 
-        # Add number ornament in center band
+        # Number ornaments at top and bottom (Grimaud style)
         if number_ornament_path:
             ornament = Image.open(number_ornament_path).convert("RGBA")
+            # Ornament size: ~12% of card height
             orn_h = int(self.h * 0.12)
             orn_w = int(orn_h * ornament.width / ornament.height)
             ornament = ornament.resize((orn_w, orn_h), Image.LANCZOS)
+
+            # Top ornament — centered horizontally, near top
             ox = (self.w - orn_w) // 2
-            oy = (self.h - orn_h) // 2
-            canvas.paste(ornament, (ox, oy), ornament)
+            oy_top = int(self.h * 0.02)
+            canvas.paste(ornament, (ox, oy_top), ornament)
 
-        # Add number text
-        canvas = self._add_trump_number(canvas, number)
+            # Bottom ornament — rotated 180°, near bottom
+            ornament_bottom = ornament.rotate(180)
+            oy_bottom = self.h - oy_top - orn_h
+            canvas.paste(ornament_bottom, (ox, oy_bottom), ornament_bottom)
 
-        # Apply border
-        if border_path:
-            border = Image.open(border_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
-            canvas = Image.alpha_composite(canvas, border)
+        # Add number text at top and bottom
+        canvas = self._add_trump_number_grimaud(canvas, number)
 
         canvas.save(output_path)
         print(f"✅ Trump {number}: {output_path}")
         return canvas
 
     # ─────────────────────────────────────────────
-    # STEP 5: Excuse (joker) assembly
+    # STEP 6: Excuse (joker) assembly
+    #
+    # Joker asset = TOP-HALF figure only → mirrored programmatically.
+    # Uses shared background.
     # ─────────────────────────────────────────────
 
-    def assemble_excuse(self, joker_image_path, background_path, border_path, output_path):
+    def assemble_excuse(self, joker_top_half_path, background_path, border_path, output_path):
         """
         Assemble the Excuse (joker) card.
-        
-        Args:
-            joker_image_path: joker illustration
-            background_path: card background
-            border_path: card border
-            output_path: where to save
+        Joker asset is the TOP-HALF figure — we mirror it for the bottom.
+        Uses the shared background.
+
+        Stack: background → border → joker figure (mirrored) → "EXCUSE" text
         """
-        # Load background
-        bg = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+        # Layer 1: Background
+        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
 
-        # Load joker image
-        joker = Image.open(joker_image_path).convert("RGBA")
+        # Layer 2: Border
+        border = self.load_border(border_path)
+        if border:
+            card = Image.alpha_composite(card, border)
 
-        # Crop joker to top half
-        jw, jh = joker.size
-        top_joker = joker.crop((0, 0, jw, jh // 2))
+        # Layer 3: Joker figure (asset IS the top half)
+        top_joker = Image.open(joker_top_half_path).convert("RGBA")
+        jw, jh = top_joker.size
         bottom_joker = top_joker.rotate(180)
 
-        # Stack
-        full_joker = Image.new("RGBA", (jw, jh), (0, 0, 0, 0))
+        full_joker = Image.new("RGBA", (jw, jh * 2), (0, 0, 0, 0))
         full_joker.paste(top_joker, (0, 0))
-        full_joker.paste(bottom_joker, (0, jh // 2))
+        full_joker.paste(bottom_joker, (0, jh))
 
         # Resize to fit card (with margin)
         margin = int(self.w * 0.08)
         joker_w = self.w - 2 * margin
-        joker_h = int(joker_w * jh / jw)
+        joker_h = int(joker_w * (jh * 2) / jw)
+        if joker_h > self.h - 2 * margin:
+            joker_h = self.h - 2 * margin
+            joker_w = int(joker_h * jw / (jh * 2))
         full_joker = full_joker.resize((joker_w, joker_h), Image.LANCZOS)
 
-        # Center on background
-        jx = margin
+        jx = (self.w - joker_w) // 2
         jy = (self.h - joker_h) // 2
-        bg.paste(full_joker, (jx, jy), full_joker)
+        card.paste(full_joker, (jx, jy), full_joker)
 
-        # Add "EXCUSE" text
-        bg = self._add_excuse_text(bg)
+        # Layer 4: "EXCUSE" text (on top of everything)
+        card = self._add_excuse_text(card)
 
-        # Apply border
-        if border_path:
-            border = Image.open(border_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
-            bg = Image.alpha_composite(bg, border)
-
-        bg.save(output_path)
+        card.save(output_path)
         print(f"✅ Excuse: {output_path}")
-        return bg
+        return card
 
     # ─────────────────────────────────────────────
-    # Helper: Add corner text (value + suit)
+    # Helper: Add corner text (value + suit symbol image)
+    # Drawn ON TOP of border.
     # ─────────────────────────────────────────────
 
     def _add_corners(self, img, value_text, symbol_img, suit):
@@ -438,7 +498,7 @@ class DeckCreator:
         return img
 
     def _add_corners_text(self, img, letter, suit):
-        """Add letter (V/C/D/R) and suit symbol text to corners."""
+        """Add letter (V/C/D/R) and suit symbol text to corners (on top of border)."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
@@ -466,8 +526,8 @@ class DeckCreator:
 
         return img
 
-    def _add_trump_number(self, img, number):
-        """Add trump number to top and bottom of card."""
+    def _add_trump_number_grimaud(self, img, number):
+        """Add trump number at top and bottom of card (Grimaud style)."""
         draw = ImageDraw.Draw(img)
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
@@ -481,7 +541,7 @@ class DeckCreator:
         # Top center
         draw.text(((self.w - tw) // 2, 8), text, fill=(0, 0, 0, 255), font=font)
 
-        # Bottom center (rotated)
+        # Bottom center (rotated for symmetry)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
         temp_draw.text(((self.w - tw) // 2, 8), text, fill=(0, 0, 0, 255), font=font)
@@ -491,7 +551,7 @@ class DeckCreator:
         return img
 
     def _add_excuse_text(self, img):
-        """Add 'EXCUSE' text to the card."""
+        """Add 'EXCUSE' text to top and bottom of card."""
         draw = ImageDraw.Draw(img)
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
@@ -501,19 +561,18 @@ class DeckCreator:
         text = "EXCUSE"
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
+
+        # Top center
         draw.text(((self.w - tw) // 2, 10), text, fill=(0, 0, 0, 255), font=font)
 
-        return img
+        # Bottom center (rotated for symmetry)
+        temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        temp_draw = ImageDraw.Draw(temp)
+        temp_draw.text(((self.w - tw) // 2, 10), text, fill=(0, 0, 0, 255), font=font)
+        temp = temp.rotate(180)
+        img = Image.alpha_composite(img, temp)
 
-    def _apply_rotational_symmetry(self, img):
-        """Ensure perfect 180° rotational symmetry by mirroring top half."""
-        w, h = img.size
-        top = img.crop((0, 0, w, h // 2))
-        bottom = top.rotate(180)
-        result = Image.new("RGBA", (w, h))
-        result.paste(top, (0, 0))
-        result.paste(bottom, (0, h // 2))
-        return result
+        return img
 
     # ─────────────────────────────────────────────
     # Convenience: card filename
@@ -546,35 +605,28 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="command")
 
     # background
-    bg_parser = sub.add_parser("background", help="Assemble background from top half")
+    bg_parser = sub.add_parser("background", help="Assemble background from top-half asset")
     bg_parser.add_argument("deck", help="Deck name")
-    bg_parser.add_argument("input", help="Top-half image")
+    bg_parser.add_argument("input", help="Top-half image (the asset IS the top half)")
     bg_parser.add_argument("output", help="Output path")
 
-    # border
-    brd_parser = sub.add_parser("border", help="Apply border to a card")
-    brd_parser.add_argument("deck", help="Deck name")
-    brd_parser.add_argument("card", help="Card image")
-    brd_parser.add_argument("border", help="Border image (transparent center)")
-    brd_parser.add_argument("output", help="Output path")
-
     # low-value
-    low_parser = sub.add_parser("low", help="Assemble low-value card")
+    low_parser = sub.add_parser("low", help="Assemble low-value card (1-10)")
     low_parser.add_argument("deck", help="Deck name")
     low_parser.add_argument("suit", choices=SUITS)
     low_parser.add_argument("value", type=int, choices=range(1, 11))
-    low_parser.add_argument("background", help="Background image")
-    low_parser.add_argument("symbol", help="Suit symbol image")
-    low_parser.add_argument("--border", help="Border image")
+    low_parser.add_argument("background", help="Full background image (already assembled)")
+    low_parser.add_argument("symbol", help="Suit symbol image (PNG, transparent bg)")
+    low_parser.add_argument("--border", help="Border image (transparent center)")
     low_parser.add_argument("output", help="Output path")
 
     # high-value
-    high_parser = sub.add_parser("high", help="Assemble high-value face card")
+    high_parser = sub.add_parser("high", help="Assemble face card (V/C/D/R)")
     high_parser.add_argument("deck", help="Deck name")
     high_parser.add_argument("suit", choices=SUITS)
     high_parser.add_argument("rank", choices=list(HIGH_RANKS.keys()))
-    high_parser.add_argument("garment", help="Garment image (transparent head area)")
-    high_parser.add_argument("head", help="Head image")
+    high_parser.add_argument("figure", help="Top-half figure image (transparent bg, complete character)")
+    high_parser.add_argument("background", help="Full background image (same as low-value)")
     high_parser.add_argument("--border", help="Border image")
     high_parser.add_argument("output", help="Output path")
 
@@ -582,34 +634,39 @@ if __name__ == "__main__":
     trump_parser = sub.add_parser("trump", help="Assemble trump card")
     trump_parser.add_argument("deck", help="Deck name")
     trump_parser.add_argument("number", type=int, choices=range(1, 22))
-    trump_parser.add_argument("top", help="Top illustration")
+    trump_parser.add_argument("top", help="Top illustration (same size as bottom)")
     trump_parser.add_argument("--bottom", help="Bottom illustration (mirrors top if omitted)")
-    trump_parser.add_argument("--ornament", help="Number ornament")
+    trump_parser.add_argument("--ornament", help="Number ornament band")
     trump_parser.add_argument("--border", help="Border image")
     trump_parser.add_argument("output", help="Output path")
 
+    # remove-bg
+    rembg_parser = sub.add_parser("remove-bg", help="Remove background from an image (for figures/joker)")
+    rembg_parser.add_argument("input", help="Input image")
+    rembg_parser.add_argument("output", help="Output PNG with transparent background")
+
     # excuse
-    exc_parser = sub.add_parser("excuse", help="Assemble excuse card")
+    exc_parser = sub.add_parser("excuse", help="Assemble excuse (joker) card")
     exc_parser.add_argument("deck", help="Deck name")
-    exc_parser.add_argument("joker", help="Joker illustration")
-    exc_parser.add_argument("background", help="Background image")
+    exc_parser.add_argument("joker", help="Joker TOP-HALF figure (asset is top half only)")
+    exc_parser.add_argument("background", help="Full background image")
     exc_parser.add_argument("--border", help="Border image")
     exc_parser.add_argument("output", help="Output path")
 
     args = parser.parse_args()
 
     if args.command:
-        dc = DeckCreator(args.deck)
-        if args.command == "background":
+        dc = DeckCreator(args.deck if hasattr(args, 'deck') else 'temp')
+        if args.command == "remove-bg":
+            dc.remove_background(args.input, args.output)
+        elif args.command == "background":
             dc.assemble_background(args.input, args.output)
-        elif args.command == "border":
-            dc.apply_border(args.card, args.border, args.output)
         elif args.command == "low":
             dc.assemble_low_value(args.suit, args.value, args.background,
                                   args.symbol, args.border, args.output)
         elif args.command == "high":
-            dc.assemble_high_value(args.suit, args.rank, args.garment,
-                                   args.head, args.border, args.output)
+            dc.assemble_high_value(args.suit, args.rank, args.figure,
+                                   args.background, args.border, args.output)
         elif args.command == "trump":
             dc.assemble_trump(args.number, args.top, args.bottom,
                               args.ornament, args.border, args.output)

@@ -1,121 +1,97 @@
-# Deck Creator Scripts
+# Deck Creator Pipeline
 
-Complete pipeline for generating custom 78-card French Tarot decks.
+## Pipeline Rules
 
-## Card Types
+1. **One shared background** for ALL simple cards (low-value 1-10 + face cards V/C/D/R). Asset = top-half only → mirrored programmatically for 180° rotational symmetry.
 
-A French Tarot deck has **78 cards**:
+2. **Face cards**: single figure asset with **transparent background** (complete character, NOT separate garment + head). Asset = **top-half figure only** → mirrored programmatically.
 
-| Type | Count | Cards |
-|------|-------|-------|
-| Low-value simples | 40 | 1-10 × 4 suits |
-| High-value simples | 16 | Valet(V), Cavalier(C), Dame(D), Roi(R) × 4 suits |
-| Atouts (trumps) | 21 | Numbered 1-21 |
-| Excuse (joker) | 1 | The Fool |
+3. **Excuse/joker asset = top-half figure only** → mirrored programmatically.
 
-## Pipeline Overview
+4. **Trump number ornaments** at **TOP and BOTTOM** of the card (Grimaud style), NOT in a center band. Ornaments overlay the illustrations.
 
-### Step 1: Set dimensions
-Default: **400×738 px**
+5. **Trump top & bottom illustrations**: same size (each half the card height).
 
-### Step 2: Design the border
-Generate a PNG with **transparent inner area** — this frame overlays every card.
+6. **Stack order for simple cards**: `background → border → symbols/figures → corners`. Corner numbers/letters are drawn **on top** of the border.
 
-### Step 3: Simple cards
+7. **Low-value symbol directions**: 
+   - Top half: **upward**
+   - Bottom half: **downward**  
+   - Middle horizontal line: **upward**
 
-#### 3a. Background
-Design the **top half** of a card background → `deck_pipeline.py background` mirrors it into a full background with smooth center transition.
+## Assets Needed Per Deck
 
-#### 3b. Suit symbols
-Design each suit symbol (♥♦♣♠) on **transparent background** — used for both low-value layouts and corner indicators.
+| Asset | Description | Count |
+|-------|-------------|-------|
+| `background_top.png` | Top-half background (mirrored for full card) | 1 |
+| `border.png` | Card frame with transparent center | 1 |
+| `symbol_*.png` | Suit symbol (♥♦♣♠) on transparent bg | 4 |
+| `figure_*_top.png` | Face card top-half figure (transparent bg, complete character) | 16 (4 suits × 4 ranks) |
+| `trump_top_*.png` | Trump illustration top half | 21 |
+| `trump_bottom_*.png` | Trump illustration bottom half (optional, mirrors top) | 0-21 |
+| `ornament.png` | Trump number decoration (placed at top + bottom) | 1 |
+| `joker_top.png` | Excuse figure top half | 1 |
+| `cardback.png` | Card back design | 1 |
 
-#### 3c. Low-value cards (1-10)
-`deck_pipeline.py low` places suit symbols in standard French card positions:
-- Corner: value number + small suit symbol
-- Center: standard pattern for 1-10 pips
-
-#### 3d. High-value cards (V/C/D/R)
-For each of the 16 face cards:
-1. **Garment** — costume + attributes (horse for C, etc.) with transparent head zone + transparent background
-2. **Head** — character portrait
-3. **Assembly** — `deck_pipeline.py high` composites head onto garment, adds corner letter + suit, mirrors for rotational symmetry, applies border
-
-### Step 4: Trumps (Atouts 1-21)
-1. Design number ornamentation
-2. Generate two illustrations (or one that gets mirrored)
-3. `deck_pipeline.py trump` assembles: top image + bottom image + number + ornament + border
-
-### Step 5: Excuse (Joker)
-1. Generate joker illustration
-2. `deck_pipeline.py excuse` mirrors it, places on background, adds "EXCUSE" text + border
-
-## CLI Usage
-
-```bash
-# Assemble background from top half
-python deck_pipeline.py background refn top_half.png output_bg.png
-
-# Apply border to any card
-python deck_pipeline.py border refn card.png border_frame.png output.png
-
-# Create low-value card
-python deck_pipeline.py low refn hearts 5 bg.png heart_symbol.png --border border.png output.png
-
-# Create face card
-python deck_pipeline.py high refn spades king garment.png head.png --border border.png output.png
-
-# Create trump
-python deck_pipeline.py trump refn 14 top.png --bottom bottom.png --ornament ornament.png --border border.png output.png
-
-# Create excuse
-python deck_pipeline.py excuse refn joker.png background.png --border border.png output.png
-```
-
-## Python API
+## Usage
 
 ```python
 from deck_pipeline import DeckCreator
 
-dc = DeckCreator("refn", card_width=400, card_height=738)
+dc = DeckCreator(deck_name="dune")
 
-# Background
-dc.assemble_background("top_half.png", "bg.png")
+# 1. Assemble background from top-half asset
+dc.assemble_background("assets/bg_top.png", "background.png")
 
-# Low-value card
-dc.assemble_low_value("hearts", 5, "bg.png", "heart.png", "border.png", "5_of_hearts.png")
+# 2. Low-value card (bg → border → symbols → corners)
+dc.assemble_low_value("hearts", 5, "background.png", "symbol_hearts.png", "border.png", "5_of_hearts.png")
 
-# Face card
-dc.assemble_high_value("spades", "king", "garment.png", "head.png", "border.png", "king_of_spades.png")
+# 3. Face card (bg → border → figure → corners)
+# Figure is a SINGLE top-half image with transparent background
+dc.assemble_high_value("hearts", "queen", "figure_queen_hearts_top.png",
+                       "background.png", "border.png", "queen_of_hearts.png")
 
-# Trump
-dc.assemble_trump(14, "top.png", None, "ornament.png", "border.png", "trump_14.png")
+# 4. Trump (ornaments at top + bottom, Grimaud style)
+dc.assemble_trump(1, "trump_top_01.png", None, "ornament.png", "border.png", "trump_01.png")
 
-# Excuse
-dc.assemble_excuse("joker.png", "bg.png", "border.png", "excuse.png")
+# 5. Excuse (joker asset = top half only)
+dc.assemble_excuse("joker_top.png", "background.png", "border.png", "excuse.png")
 ```
 
-## Style Guides
+## Background Removal (for figures & joker)
 
-Each deck has a `style_guide.md` in `images/decks/<style>/` with:
-- Color palette (suit-specific colors)
-- Border/frame design specs
-- Symbol placement rules
-- Character rendering approach
-- Lighting/mood description
+`imagine` can't generate transparent backgrounds natively. Use `remove_background()` as a post-processing step after generating face card figures and joker art:
 
-See `images/decks/refn/style_guide.md` for an example.
-
-## Naming Convention
-
-```
-1_of_hearts.png ... 10_of_hearts.png
-jack_of_hearts.png
-knight_of_hearts.png
-queen_of_hearts.png
-king_of_hearts.png
-trump_01.png ... trump_21.png
-excuse.png
-cardback.png
+```python
+# After generating a figure with imagine
+dc.remove_background("figure_raw.jpg", "figure_queen_hearts_top.png")
 ```
 
-All cards: **400×738 PNG**.
+Requires: `pip install rembg onnxruntime`
+
+CLI: `python deck_pipeline.py remove-bg input.jpg output.png`
+
+## Image Generation Guidelines
+
+When using `imagine` to generate assets, match orientation to the target ratio:
+
+| Asset | Target ratio | `--orientation` |
+|-------|-------------|-----------------|
+| `background_top` | ~1.08:1 (400×369) | `square` |
+| `figure_*_top` (face cards) | ~1.08:1 (top half of card) | `square` |
+| `joker_top` | ~1.08:1 (top half of card) | `square` |
+| `trump_top_*` | ~1.08:1 (400×369) | `square` |
+| `border` | ~0.54:1 (400×738) | `vertical` |
+| `cardback` | ~0.54:1 (400×738) | `vertical` |
+| `ornament` | wide banner | `landscape` |
+| `symbol_*` | 1:1 | `square` |
+
+## CLI
+
+```bash
+python deck_pipeline.py background dune assets/bg_top.png output/background.png
+python deck_pipeline.py low dune hearts 5 background.png symbol_hearts.png --border border.png output/5_of_hearts.png
+python deck_pipeline.py high dune hearts queen figure_top.png background.png --border border.png output/queen.png
+python deck_pipeline.py trump dune 1 top.png --border border.png output/trump_01.png
+python deck_pipeline.py excuse dune joker_top.png background.png --border border.png output/excuse.png
+```
