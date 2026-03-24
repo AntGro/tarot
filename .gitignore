@@ -11,3 +11,7 @@
 !images/**
 !scripts/
 !scripts/**
+
+# Re-exclude generated/private content
+__pycache__/
+images/decks/dune/
