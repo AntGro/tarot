@@ -67,8 +67,14 @@ HIGH_RANKS = {
 TRUMP_COUNT = 21
 
 
+FONT_DIR = os.path.join(os.path.dirname(__file__), "fonts")
+DEFAULT_FONT = os.path.join(FONT_DIR, "EBGaramond.ttf")
+FALLBACK_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
+
+
 class DeckCreator:
-    def __init__(self, deck_name, card_width=DEFAULT_WIDTH, card_height=DEFAULT_HEIGHT):
+    def __init__(self, deck_name, card_width=DEFAULT_WIDTH, card_height=DEFAULT_HEIGHT,
+                 font_path=None):
         self.deck_name = deck_name
         self.w = card_width
         self.h = card_height
@@ -76,6 +82,17 @@ class DeckCreator:
             os.path.dirname(__file__), "..", "..", "images", "decks", deck_name
         )
         os.makedirs(self.deck_dir, exist_ok=True)
+        # Font selection: custom > EB Garamond > DejaVu Serif > default
+        self.font_path = font_path or DEFAULT_FONT
+        if not os.path.exists(self.font_path):
+            self.font_path = FALLBACK_FONT
+
+    def _load_font(self, size):
+        """Load the deck font at the given size."""
+        try:
+            return ImageFont.truetype(self.font_path, size)
+        except (OSError, IOError):
+            return ImageFont.load_default()
 
     # ─────────────────────────────────────────────
     # UTILITY: Remove background from AI-generated images
@@ -501,24 +518,35 @@ class DeckCreator:
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
 
-        font_size = max(16, int(self.w * 0.08))
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-        except (IOError, OSError):
-            font = ImageFont.load_default()
+        font_size = max(16, int(self.w * 0.10))
+        font = self._load_font(font_size)
+        stroke_w = max(1, int(self.w * 0.003))
 
         margin = max(6, int(self.w * 0.03))
+        sym_w = symbol_img.width
+
+        # Measure text width for centering
+        bbox = draw.textbbox((0, 0), value_text, font=font, stroke_width=stroke_w)
+        tw = bbox[2] - bbox[0]
+
+        # Center axis = middle of the symbol
+        center_x = margin + sym_w // 2
+        text_x = center_x - tw // 2
+        sym_x = margin
+
         sym_offset = int(font_size * 1.15)
-        # Top-left: value
-        draw.text((margin, margin), value_text, fill=font_color, font=font)
+        # Top-left: value centered over symbol
+        draw.text((text_x, margin), value_text, fill=font_color, font=font,
+                  stroke_width=stroke_w, stroke_fill=font_color)
         # Top-left: suit symbol below value
-        img.paste(symbol_img, (margin, margin + sym_offset), symbol_img)
+        img.paste(symbol_img, (sym_x, margin + sym_offset), symbol_img)
 
         # Bottom-right: rotated
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text((margin, margin), value_text, fill=font_color, font=font)
-        temp.paste(symbol_img, (margin, margin + sym_offset), symbol_img)
+        temp_draw.text((text_x, margin), value_text, fill=font_color, font=font,
+                       stroke_width=stroke_w, stroke_fill=font_color)
+        temp.paste(symbol_img, (sym_x, margin + sym_offset), symbol_img)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
@@ -531,26 +559,36 @@ class DeckCreator:
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
         symbol = SUIT_SYMBOLS[suit]
 
-        font_size = max(14, int(self.w * 0.07))
-        sym_font_size = max(12, int(self.w * 0.06))
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-            sym_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", sym_font_size)
-        except (IOError, OSError):
-            font = ImageFont.load_default()
-            sym_font = font
+        font_size = max(14, int(self.w * 0.09))
+        sym_font_size = max(12, int(self.w * 0.07))
+        font = self._load_font(font_size)
+        sym_font = self._load_font(sym_font_size)
+        stroke_w = max(1, int(self.w * 0.003))
 
         margin = max(6, int(self.w * 0.03))
+
+        # Measure widths for centering
+        bbox_letter = draw.textbbox((0, 0), letter, font=font, stroke_width=stroke_w)
+        lw = bbox_letter[2] - bbox_letter[0]
+        bbox_sym = draw.textbbox((0, 0), symbol, font=sym_font, stroke_width=stroke_w)
+        sw = bbox_sym[2] - bbox_sym[0]
+        max_w = max(lw, sw)
+        center_x = margin + max_w // 2
+
         sym_offset = int(font_size * 1.15)
-        # Top-left
-        draw.text((margin, margin), letter, fill=font_color, font=font)
-        draw.text((margin, margin + sym_offset), symbol, fill=font_color, font=sym_font)
+        # Top-left (centered)
+        draw.text((center_x - lw // 2, margin), letter, fill=font_color, font=font,
+                  stroke_width=stroke_w, stroke_fill=font_color)
+        draw.text((center_x - sw // 2, margin + sym_offset), symbol, fill=font_color, font=sym_font,
+                  stroke_width=stroke_w, stroke_fill=font_color)
 
         # Bottom-right (rotated)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text((margin, margin), letter, fill=font_color, font=font)
-        temp_draw.text((margin, margin + sym_offset), symbol, fill=font_color, font=sym_font)
+        temp_draw.text((center_x - lw // 2, margin), letter, fill=font_color, font=font,
+                       stroke_width=stroke_w, stroke_fill=font_color)
+        temp_draw.text((center_x - sw // 2, margin + sym_offset), symbol, fill=font_color, font=sym_font,
+                       stroke_width=stroke_w, stroke_fill=font_color)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
@@ -561,22 +599,22 @@ class DeckCreator:
         draw = ImageDraw.Draw(img)
         font_size = max(18, int(self.w * 0.09))
         top_margin = max(4, int(self.h * 0.01))
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-        except (IOError, OSError):
-            font = ImageFont.load_default()
+        font = self._load_font(font_size)
+        stroke_w = max(1, int(self.w * 0.003))
 
         text = str(number)
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
 
         # Top center
-        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
+        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
+                  stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
 
         # Bottom center (rotated for symmetry)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
+        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
+                       stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
@@ -587,22 +625,22 @@ class DeckCreator:
         draw = ImageDraw.Draw(img)
         font_size = max(14, int(self.w * 0.07))
         top_margin = max(4, int(self.h * 0.013))
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-        except (IOError, OSError):
-            font = ImageFont.load_default()
+        font = self._load_font(font_size)
+        stroke_w = max(1, int(self.w * 0.003))
 
         text = "EXCUSE"
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
 
         # Top center
-        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
+        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
+                  stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
 
         # Bottom center (rotated for symmetry)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
+        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
+                       stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
