@@ -20,7 +20,16 @@ PIPELINE RULES:
    Corners (letters/numbers) are ON TOP of the border.
 7. Low-value symbol directions: upward in top half, downward in bottom half,
    upward on the horizontal middle line.
-"""
+8. AI PROMPT RULE: When generating figure/excuse images with imagine,
+   always specify "plain solid color background" (white, black, or flat color).
+   This ensures rembg can cleanly remove the background. Avoid textured,
+   gradient, or scenic backgrounds — they cause removal artifacts.
+
+ASSET ORIENTATION (for imagine --orientation):
+- Background top-half: square (card top is ~400×369, nearly 1:1)
+- Face card figures: square (single character portrait)
+- Trump illustrations: square
+- Suit symbols: square"""
 
 import argparse
 import os
@@ -300,6 +309,11 @@ class DeckCreator:
     #        Asset is the TOP-HALF of the figure → mirrored for bottom.
     # Stack: background → border → figure (mirrored) → corner letters
     # Uses the SAME background as low-value cards.
+    #
+    # PROMPT RULE: When generating figure images with AI (imagine),
+    # always specify "plain solid color background" (e.g. white, black,
+    # or single flat color) so rembg can cleanly remove it.
+    # Avoid textured/gradient/scenic backgrounds — they cause artifacts.
     # ─────────────────────────────────────────────
 
     def assemble_high_value(self, suit, rank, figure_top_path,
