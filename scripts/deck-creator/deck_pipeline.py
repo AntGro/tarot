@@ -172,7 +172,7 @@ class DeckCreator:
 
         # Layer 3: Suit symbols at standard positions
         symbol = Image.open(symbol_path).convert("RGBA")
-        center_size = int(self.w * 0.12)
+        center_size = int(self.w * 0.20)
         center_sym = symbol.resize((center_size, center_size), Image.LANCZOS)
         center_sym_down = center_sym.rotate(180)
 
@@ -183,7 +183,8 @@ class DeckCreator:
             card.paste(s, (x, y), s)
 
         # Layer 4: Corner value + symbol (ON TOP of border)
-        corner_sym = symbol.resize((28, 28), Image.LANCZOS)
+        corner_size = max(16, int(self.w * 0.07))
+        corner_sym = symbol.resize((corner_size, corner_size), Image.LANCZOS)
         card = self._add_corners(card, str(value), corner_sym, suit)
 
         card.save(output_path)
@@ -206,24 +207,34 @@ class DeckCreator:
         """
         cx = self.w // 2 - sym_size // 2
         # Two columns — Grimaud uses ~27% inset from card edge
-        col_inset = int(self.w * 0.27)
+        col_inset = int(self.w * 0.22)
         lx = col_inset - sym_size // 2
         rx = self.w - col_inset - sym_size // 2
 
         # Vertical rows — measured from Grimaud reference cards
         # Row positions as fraction of card height (from top edge)
         # Corner area ends at ~12%, playable area ~12%-88%
-        r1 = int(self.h * 0.13)   # Row 1: top
-        r2 = int(self.h * 0.26)   # Row 2: upper-mid
-        r3 = int(self.h * 0.39)   # Row 3: upper-center
+        r1 = int(self.h * 0.10)   # Row 1: top
+        r2 = int(self.h * 0.23)   # Row 2: upper-mid
+        r3 = int(self.h * 0.36)   # Row 3: upper-center
         mid = self.h // 2 - sym_size // 2  # Exact middle
-        r5 = self.h - int(self.h * 0.39) - sym_size  # Row 5: lower-center (mirror r3)
-        r6 = self.h - int(self.h * 0.26) - sym_size  # Row 6: lower-mid (mirror r2)
-        r7 = self.h - int(self.h * 0.13) - sym_size  # Row 7: bottom (mirror r1)
+        r5 = self.h - int(self.h * 0.36) - sym_size  # Row 5: lower-center (mirror r3)
+        r6 = self.h - int(self.h * 0.23) - sym_size  # Row 6: lower-mid (mirror r2)
+        r7 = self.h - int(self.h * 0.10) - sym_size  # Row 7: bottom (mirror r1)
 
         # Between rows for 7/8/10 extra symbols
-        r1_2 = int(self.h * 0.195)  # Between r1 and r2
-        r6_7 = self.h - int(self.h * 0.195) - sym_size  # Mirror of r1_2
+        # r1_2 for 7/8: midpoint between r1 and mid
+        r1_2_mid = (r1 + mid) // 2
+        r6_7_mid = self.h - (r1 + mid) // 2 - sym_size
+
+        # Evenly spaced 4 rows for 9/10 layouts
+        gap_4 = (r7 - r1) // 3
+        r_e2 = r1 + gap_4       # Even row 2
+        r_e3 = r1 + 2 * gap_4   # Even row 3
+
+        # Center extras: midpoint between nearest side rows
+        r1_2 = (r1 + r_e2) // 2       # Between row 1 and row 2
+        r6_7 = (r_e3 + r7) // 2       # Between row 3 and row 4
 
         layouts = {
             # Ace: single large centered symbol (handled by caller or here as regular)
@@ -254,29 +265,29 @@ class DeckCreator:
 
             # 7: like 6 but with one extra centered between r1 and mid
             7: [(lx, r1, "up"), (rx, r1, "up"),
-                (cx, r1_2, "up"),
+                (cx, r1_2_mid, "up"),
                 (lx, mid, "up"), (rx, mid, "up"),
                 (lx, r7, "down"), (rx, r7, "down")],
 
             # 8: like 6 but with two extras centered (one upper, one lower)
             8: [(lx, r1, "up"), (rx, r1, "up"),
-                (cx, r1_2, "up"),
+                (cx, r1_2_mid, "up"),
                 (lx, mid, "up"), (rx, mid, "up"),
-                (cx, r6_7, "down"),
+                (cx, r6_7_mid, "down"),
                 (lx, r7, "down"), (rx, r7, "down")],
 
-            # 9: 3×3 + center column gaps filled
+            # 9: 4 rows on sides (evenly spaced) + center
             9: [(lx, r1, "up"), (rx, r1, "up"),
-                (lx, r2, "up"), (rx, r2, "up"),
+                (lx, r_e2, "up"), (rx, r_e2, "up"),
                 (cx, mid, "up"),
-                (lx, r6, "down"), (rx, r6, "down"),
+                (lx, r_e3, "down"), (rx, r_e3, "down"),
                 (lx, r7, "down"), (rx, r7, "down")],
 
-            # 10: like 9 but with two extras centered between rows
+            # 10: like 9 but with two extras centered between row pairs
             10: [(lx, r1, "up"), (rx, r1, "up"),
                  (cx, r1_2, "up"),
-                 (lx, r2, "up"), (rx, r2, "up"),
-                 (lx, r6, "down"), (rx, r6, "down"),
+                 (lx, r_e2, "up"), (rx, r_e2, "up"),
+                 (lx, r_e3, "down"), (rx, r_e3, "down"),
                  (cx, r6_7, "down"),
                  (lx, r7, "down"), (rx, r7, "down")],
         }
@@ -476,22 +487,24 @@ class DeckCreator:
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
 
+        font_size = max(16, int(self.w * 0.08))
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
         except (IOError, OSError):
             font = ImageFont.load_default()
 
-        margin = 12
+        margin = max(6, int(self.w * 0.03))
+        sym_offset = int(font_size * 1.15)
         # Top-left: value
         draw.text((margin, margin), value_text, fill=font_color, font=font)
         # Top-left: suit symbol below value
-        img.paste(symbol_img, (margin, margin + 36), symbol_img)
+        img.paste(symbol_img, (margin, margin + sym_offset), symbol_img)
 
         # Bottom-right: rotated
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
         temp_draw.text((margin, margin), value_text, fill=font_color, font=font)
-        temp.paste(symbol_img, (margin, margin + 36), symbol_img)
+        temp.paste(symbol_img, (margin, margin + sym_offset), symbol_img)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
@@ -504,23 +517,26 @@ class DeckCreator:
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
         symbol = SUIT_SYMBOLS[suit]
 
+        font_size = max(14, int(self.w * 0.07))
+        sym_font_size = max(12, int(self.w * 0.06))
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            sym_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            sym_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", sym_font_size)
         except (IOError, OSError):
             font = ImageFont.load_default()
             sym_font = font
 
-        margin = 12
+        margin = max(6, int(self.w * 0.03))
+        sym_offset = int(font_size * 1.15)
         # Top-left
         draw.text((margin, margin), letter, fill=font_color, font=font)
-        draw.text((margin, margin + 32), symbol, fill=font_color, font=sym_font)
+        draw.text((margin, margin + sym_offset), symbol, fill=font_color, font=sym_font)
 
         # Bottom-right (rotated)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
         temp_draw.text((margin, margin), letter, fill=font_color, font=font)
-        temp_draw.text((margin, margin + 32), symbol, fill=font_color, font=sym_font)
+        temp_draw.text((margin, margin + sym_offset), symbol, fill=font_color, font=sym_font)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
@@ -529,8 +545,10 @@ class DeckCreator:
     def _add_trump_number_grimaud(self, img, number):
         """Add trump number at top and bottom of card (Grimaud style)."""
         draw = ImageDraw.Draw(img)
+        font_size = max(18, int(self.w * 0.09))
+        top_margin = max(4, int(self.h * 0.01))
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
         except (IOError, OSError):
             font = ImageFont.load_default()
 
@@ -539,12 +557,12 @@ class DeckCreator:
         tw = bbox[2] - bbox[0]
 
         # Top center
-        draw.text(((self.w - tw) // 2, 8), text, fill=(0, 0, 0, 255), font=font)
+        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
 
         # Bottom center (rotated for symmetry)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text(((self.w - tw) // 2, 8), text, fill=(0, 0, 0, 255), font=font)
+        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
@@ -553,8 +571,10 @@ class DeckCreator:
     def _add_excuse_text(self, img):
         """Add 'EXCUSE' text to top and bottom of card."""
         draw = ImageDraw.Draw(img)
+        font_size = max(14, int(self.w * 0.07))
+        top_margin = max(4, int(self.h * 0.013))
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
         except (IOError, OSError):
             font = ImageFont.load_default()
 
@@ -563,12 +583,12 @@ class DeckCreator:
         tw = bbox[2] - bbox[0]
 
         # Top center
-        draw.text(((self.w - tw) // 2, 10), text, fill=(0, 0, 0, 255), font=font)
+        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
 
         # Bottom center (rotated for symmetry)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text(((self.w - tw) // 2, 10), text, fill=(0, 0, 0, 255), font=font)
+        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
