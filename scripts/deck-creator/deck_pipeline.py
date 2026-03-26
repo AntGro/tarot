@@ -334,7 +334,8 @@ class DeckCreator:
     # ─────────────────────────────────────────────
 
     def assemble_high_value(self, suit, rank, figure_top_path,
-                            background_path, border_path, output_path):
+                            background_path, border_path, output_path,
+                            symbol_path=None):
         """
         Assemble a high-value face card.
         
@@ -346,6 +347,7 @@ class DeckCreator:
             background_path: shared background (same as low-value cards)
             border_path: card border
             output_path: where to save
+            symbol_path: suit symbol image (optional; falls back to text)
         
         Stack: background → border → figure (mirrored) → corners
         """
@@ -357,31 +359,56 @@ class DeckCreator:
         if border:
             card = Image.alpha_composite(card, border)
 
-        # Layer 3: Figure (asset IS the top half, mirror for bottom)
-        top_figure = Image.open(figure_top_path).convert("RGBA")
-        fw, fh = top_figure.size
-        bottom_figure = top_figure.rotate(180)
-
-        full_figure = Image.new("RGBA", (fw, fh * 2), (0, 0, 0, 0))
-        full_figure.paste(top_figure, (0, 0))
-        full_figure.paste(bottom_figure, (0, fh))
-
-        # Resize figure to fit within card (with margin)
-        margin = int(self.w * 0.06)
-        fig_w = self.w - 2 * margin
-        fig_h = int(fig_w * (fh * 2) / fw)
-        if fig_h > self.h - 2 * margin:
-            fig_h = self.h - 2 * margin
-            fig_w = int(fig_h * fw / (fh * 2))
-        full_figure = full_figure.resize((fig_w, fig_h), Image.LANCZOS)
-
-        fx = (self.w - fig_w) // 2
-        fy = (self.h - fig_h) // 2
-        card.paste(full_figure, (fx, fy), full_figure)
+        # Layer 3: Figure — auto-fit to card's top half
+        # 
+        # Pipeline: raw figure (any size) → crop to content bounds →
+        # fit into a canvas of exactly (card_width × card_height/2) →
+        # mirror → paste. This guarantees halves touch at center.
+        #
+        raw_figure = Image.open(figure_top_path).convert("RGBA")
+        
+        # Crop to content bounds (trim transparent edges)
+        content_bbox = raw_figure.getbbox()
+        if content_bbox:
+            raw_figure = raw_figure.crop(content_bbox)
+        
+        fw, fh = raw_figure.size
+        half_h = self.h // 2
+        
+        # Scale figure to FIT within the top-half canvas (preserve full figure)
+        scale_w = self.w / fw
+        scale_h = half_h / fh
+        scale = min(scale_w, scale_h)  # fit, don't fill
+        
+        scaled_w = int(fw * scale)
+        scaled_h = int(fh * scale)
+        
+        scaled_figure = raw_figure.resize((scaled_w, scaled_h), Image.LANCZOS)
+        
+        # Create top-half canvas and paste figure centered,
+        # cropping any overflow
+        top_canvas = Image.new("RGBA", (self.w, half_h), (0, 0, 0, 0))
+        paste_x = (self.w - scaled_w) // 2
+        paste_y = (half_h - scaled_h) // 2
+        top_canvas.paste(scaled_figure, (paste_x, paste_y), scaled_figure)
+        
+        # Mirror for bottom half
+        bottom_canvas = top_canvas.rotate(180)
+        
+        # Combine into full card figure
+        full_figure = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        full_figure.paste(top_canvas, (0, 0))
+        full_figure.paste(bottom_canvas, (0, half_h))
+        
+        card.paste(full_figure, (0, 0), full_figure)
 
         # Layer 4: Corner letter + suit (ON TOP of border)
         letter = HIGH_RANKS[rank]
-        card = self._add_corners_text(card, letter, suit)
+        if symbol_path:
+            symbol = Image.open(symbol_path).convert("RGBA")
+            card = self._add_corners_face(card, letter, symbol, suit)
+        else:
+            card = self._add_corners_text(card, letter, suit)
 
         card.save(output_path)
         print(f"✅ {rank} of {suit}: {output_path}")
@@ -547,6 +574,82 @@ class DeckCreator:
         temp_draw.text((text_x, margin), value_text, fill=font_color, font=font,
                        stroke_width=stroke_w, stroke_fill=font_color)
         temp.paste(symbol_img, (sym_x, margin + sym_offset), symbol_img)
+        temp = temp.rotate(180)
+        img = Image.alpha_composite(img, temp)
+
+        return img
+
+    def _add_corners_face(self, img, letter, symbol_img, suit):
+        """Add face card corner: letter + suit symbol side by side.
+        Symbol is 110% of font size, slightly cropped, placed next to the letter.
+        Letter is positioned a bit lower than simple card corners."""
+        draw = ImageDraw.Draw(img)
+        color = SUIT_COLORS[suit]
+        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+
+        font_size = max(14, int(self.w * 0.09))
+        font = self._load_font(font_size)
+        stroke_w = max(1, int(self.w * 0.003))
+
+        margin = max(6, int(self.w * 0.03))
+        top_margin = int(margin * 1.8)  # a bit lower
+
+        # Symbol: 250% of font size, crop 10% from edges
+        sym_size = int(font_size * 2.5)
+        sym = symbol_img.resize((sym_size, sym_size), Image.LANCZOS)
+        sym_cropped = sym
+
+        # Measure letter dimensions
+        bbox = draw.textbbox((0, 0), letter, font=font, stroke_width=stroke_w)
+        tw = bbox[2] - bbox[0]
+        t_top = bbox[1]  # actual top of rendered glyph (can be negative)
+
+        # Letter then symbol side by side
+        # Align symbol top with the actual top of the rendered letter
+        gap = -tw // 2  # symbol starts at horizontal middle of the letter
+        sym_y = top_margin + t_top
+
+        # Crop left edge of symbol so it doesn't cover the letter
+        overlap = tw // 2
+        sym_cropped = sym_cropped.crop((overlap, 0, sym_cropped.width, sym_cropped.height))
+
+        # Paste position: symbol left edge = letter right edge (margin + tw)
+        sym_paste_x = margin + tw
+
+        # Small corner symbol below letter (same as simple cards)
+        corner_size = max(16, int(self.w * 0.07))
+        corner_sym = symbol_img.resize((corner_size, corner_size), Image.LANCZOS)
+        sym_offset = int(font_size * 1.15)
+        # Center corner symbol under the letter
+        corner_x = margin + tw // 2 - corner_size // 2
+
+        # Top-right: letter + symbol (mirrored horizontally)
+        tr_letter_x = self.w - margin - tw
+        tr_corner_x = self.w - margin - tw // 2 - corner_size // 2
+
+        # Top-left
+        draw.text((margin, top_margin), letter, fill=font_color, font=font,
+                  stroke_width=stroke_w, stroke_fill=font_color)
+        img.paste(sym_cropped, (sym_paste_x, sym_y), sym_cropped)
+        img.paste(corner_sym, (corner_x, top_margin + sym_offset), corner_sym)
+
+        # Top-right
+        draw.text((tr_letter_x, top_margin), letter, fill=font_color, font=font,
+                  stroke_width=stroke_w, stroke_fill=font_color)
+        img.paste(corner_sym, (tr_corner_x, top_margin + sym_offset), corner_sym)
+
+        # Bottom-left + bottom-right via rotation of top-right + top-left
+        temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        temp_draw = ImageDraw.Draw(temp)
+        # Mirror of top-left → bottom-right
+        temp_draw.text((margin, top_margin), letter, fill=font_color, font=font,
+                       stroke_width=stroke_w, stroke_fill=font_color)
+        temp.paste(sym_cropped, (sym_paste_x, sym_y), sym_cropped)
+        temp.paste(corner_sym, (corner_x, top_margin + sym_offset), corner_sym)
+        # Mirror of top-right → bottom-left
+        temp_draw.text((tr_letter_x, top_margin), letter, fill=font_color, font=font,
+                       stroke_width=stroke_w, stroke_fill=font_color)
+        temp.paste(corner_sym, (tr_corner_x, top_margin + sym_offset), corner_sym)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
