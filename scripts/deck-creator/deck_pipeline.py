@@ -371,15 +371,26 @@ class DeckCreator:
             print(f"⚠️  Legs detected (bottom 30% fill: {avg_fill:.1%}). "
                   f"Cut image in half horizontally.")
         
-        # Step B: Crop bottom — scan upward until >50% of the row is non-blank
+        # Step B: Crop bottom — scan upward until finding a row where:
+        #   1. >50% of pixels are non-blank, AND
+        #   2. >40% of pixels are contiguously non-blank
         alpha = raw_figure.split()[3]
         fw, fh = raw_figure.size
-        threshold = 0.50
         bottom_row = fh - 1
         for y in range(fh - 1, -1, -1):
             row_pixels = list(alpha.crop((0, y, fw, y + 1)).getdata())
             non_blank = sum(1 for p in row_pixels if p > 10) / fw
-            if non_blank >= threshold:
+            # Check contiguous run
+            max_run = 0
+            current_run = 0
+            for p in row_pixels:
+                if p > 10:
+                    current_run += 1
+                    max_run = max(max_run, current_run)
+                else:
+                    current_run = 0
+            contiguous = max_run / fw
+            if non_blank >= 0.50 and contiguous >= 0.40:
                 bottom_row = y
                 break
         raw_figure = raw_figure.crop((0, 0, fw, bottom_row + 1))
@@ -524,15 +535,25 @@ class DeckCreator:
             print(f"⚠️  Legs detected on excuse figure (bottom 30% fill: {avg_fill:.1%}). "
                   f"Cut image in half horizontally.")
         
-        # Step B: Crop bottom — scan upward until >50% of the row is non-blank
+        # Step B: Crop bottom — scan upward until finding a row where:
+        #   1. >50% of pixels are non-blank, AND
+        #   2. >40% of pixels are contiguously non-blank
         alpha = raw_joker.split()[3]
         jw, jh = raw_joker.size
-        threshold = 0.50
         bottom_row = jh - 1
         for y in range(jh - 1, -1, -1):
             row_pixels = list(alpha.crop((0, y, jw, y + 1)).getdata())
             non_blank = sum(1 for p in row_pixels if p > 10) / jw
-            if non_blank >= threshold:
+            max_run = 0
+            current_run = 0
+            for p in row_pixels:
+                if p > 10:
+                    current_run += 1
+                    max_run = max(max_run, current_run)
+                else:
+                    current_run = 0
+            contiguous = max_run / jw
+            if non_blank >= 0.50 and contiguous >= 0.40:
                 bottom_row = y
                 break
         raw_joker = raw_joker.crop((0, 0, jw, bottom_row + 1))
