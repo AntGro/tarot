@@ -18,7 +18,6 @@ Nicolas Winding Refn films: *Drive*, *Only God Forgives*, *The Neon Demon*
 - Blood splatter accents (subtle, not gratuitous)
 
 ## Card Layout — STRICT RULES
-- **Border**: thin dark blue/navy border around the entire card
 - **Top-left corner**: LARGE suit symbol (heart/spade/diamond/club) in neon pink/magenta, with letter (R/D/V) directly BELOW the symbol, also in neon pink/magenta
 - **Top-right corner**: smaller letter R only, in dark blue/navy (subtle, secondary)
 - **Symmetry**: bottom half is exact 180° rotation of top half (generated programmatically)

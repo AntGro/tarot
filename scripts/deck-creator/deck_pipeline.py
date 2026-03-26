@@ -623,7 +623,7 @@ class DeckCreator:
         return img
 
     def _add_corners_text(self, img, letter, suit):
-        """Add letter (V/C/D/R) and suit symbol text to corners (on top of border)."""
+        """Add letter (V/C/D/R) and suit symbol text to corners."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)

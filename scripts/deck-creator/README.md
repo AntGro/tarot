@@ -12,19 +12,20 @@
 
 5. **Trump top & bottom illustrations**: same size (each half the card height).
 
-6. **Stack order for simple cards**: `background → border → symbols/figures → corners`. Corner numbers/letters are drawn **on top** of the border.
+6. **Stack order**: `background → symbols/figures → corners`.
 
 7. **Low-value symbol directions**: 
    - Top half: **upward**
    - Bottom half: **downward**  
    - Middle horizontal line: **upward**
 
+8. **AI prompt rule for figures/excuse**: always include "plain solid color background" (e.g. white, black, or single flat color) so `rembg` can cleanly remove it. Also: "portrait from chest up, full head visible with space above, cropped at the waist". Avoid textured/gradient/scenic backgrounds — they cause artifacts.
+
 ## Assets Needed Per Deck
 
 | Asset | Description | Count |
 |-------|-------------|-------|
 | `background_top.png` | Top-half background (mirrored for full card) | 1 |
-| `border.png` | Card frame with transparent center | 1 |
 | `symbol_*.png` | Suit symbol (♥♦♣♠) on transparent bg | 4 |
 | `figure_*_top.png` | Face card top-half figure (transparent bg, complete character) | 16 (4 suits × 4 ranks) |
 | `trump_top_*.png` | Trump illustration top half | 21 |
@@ -43,19 +44,19 @@ dc = DeckCreator(deck_name="dune")
 # 1. Assemble background from top-half asset
 dc.assemble_background("assets/bg_top.png", "background.png")
 
-# 2. Low-value card (bg → border → symbols → corners)
-dc.assemble_low_value("hearts", 5, "background.png", "symbol_hearts.png", "border.png", "5_of_hearts.png")
+# 2. Low-value card (bg → symbols → corners)
+dc.assemble_low_value("hearts", 5, "background.png", "symbol_hearts.png", "5_of_hearts.png")
 
-# 3. Face card (bg → border → figure → corners)
+# 3. Face card (bg → figure → corners)
 # Figure is a SINGLE top-half image with transparent background
 dc.assemble_high_value("hearts", "queen", "figure_queen_hearts_top.png",
-                       "background.png", "border.png", "queen_of_hearts.png")
+                       "background.png", "queen_of_hearts.png")
 
 # 4. Trump (ornaments at top + bottom, Grimaud style)
-dc.assemble_trump(1, "trump_top_01.png", None, "ornament.png", "border.png", "trump_01.png")
+dc.assemble_trump(1, "trump_top_01.png", None, "ornament.png", "trump_01.png")
 
 # 5. Excuse (joker asset = top half only)
-dc.assemble_excuse("joker_top.png", "background.png", "border.png", "excuse.png")
+dc.assemble_excuse("joker_top.png", "background.png", "excuse.png")
 ```
 
 ## Background Removal (for figures & joker)
@@ -81,7 +82,6 @@ When using `imagine` to generate assets, match orientation to the target ratio:
 | `figure_*_top` (face cards) | ~1.08:1 (top half of card) | `square` |
 | `joker_top` | ~1.08:1 (top half of card) | `square` |
 | `trump_top_*` | ~1.08:1 (400×369) | `square` |
-| `border` | ~0.54:1 (400×738) | `vertical` |
 | `cardback` | ~0.54:1 (400×738) | `vertical` |
 | `ornament` | wide banner | `landscape` |
 | `symbol_*` | 1:1 | `square` |
@@ -90,8 +90,8 @@ When using `imagine` to generate assets, match orientation to the target ratio:
 
 ```bash
 python deck_pipeline.py background dune assets/bg_top.png output/background.png
-python deck_pipeline.py low dune hearts 5 background.png symbol_hearts.png --border border.png output/5_of_hearts.png
-python deck_pipeline.py high dune hearts queen figure_top.png background.png --border border.png output/queen.png
-python deck_pipeline.py trump dune 1 top.png --border border.png output/trump_01.png
-python deck_pipeline.py excuse dune joker_top.png background.png --border border.png output/excuse.png
+python deck_pipeline.py low dune hearts 5 background.png symbol_hearts.png output/5_of_hearts.png
+python deck_pipeline.py high dune hearts queen figure_top.png background.png output/queen.png
+python deck_pipeline.py trump dune 1 top.png output/trump_01.png
+python deck_pipeline.py excuse dune joker_top.png background.png output/excuse.png
 ```
