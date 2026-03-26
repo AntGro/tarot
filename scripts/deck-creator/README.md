@@ -19,7 +19,13 @@
    - Bottom half: **downward**  
    - Middle horizontal line: **upward**
 
-8. **AI prompt rule for figures/excuse**: always include "plain solid color background" (e.g. white, black, or single flat color) so `rembg` can cleanly remove it. Also: "portrait from chest up, full head visible with space above, cropped at the waist". Avoid textured/gradient/scenic backgrounds — they cause artifacts.
+8. **AI prompt rules for figures/excuse**:
+   - Always include "plain solid color background" so `rembg` works cleanly.
+   - All figures (V/C/D/R) and excuse must be **half-length portraits**: "from the waist up, no legs visible, full head visible with space above, showing hands, centered".
+   - **Knights** must also show the horse head: "knight mounted on horse, half-length portrait showing rider from waist up with hands visible and horse head and neck, no hooves".
+   - Do **NOT** use "close-up" or "zoomed in" — it crops too tight.
+   - Avoid textured/gradient/scenic backgrounds.
+   - The pipeline includes **automatic leg detection** (`detect_legs`): warns if bottom 30% fill < 30%. If triggered, regenerate.
 
 ## Assets Needed Per Deck
 

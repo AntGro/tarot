@@ -19,10 +19,21 @@ PIPELINE RULES:
 6. Stack order for simple cards: background → symbols/figures → corners.
 7. Low-value symbol directions: upward in top half, downward in bottom half,
    upward on the horizontal middle line.
-8. AI PROMPT RULE: When generating figure/excuse images with imagine,
-   always specify "plain solid color background" (white, black, or flat color).
-   This ensures rembg can cleanly remove the background. Avoid textured,
-   gradient, or scenic backgrounds — they cause removal artifacts.
+8. AI PROMPT RULES for figure/excuse images:
+   a. Always specify "plain solid color background" (white, black, or flat color).
+      This ensures rembg can cleanly remove the background.
+   b. All figures (V/C/D/R) and excuse must be HALF-LENGTH PORTRAITS:
+      "half-length portrait, from the waist up, no legs visible, full head
+      visible with space above, showing hands, centered".
+   c. Knights (cavalier) must also show the horse head:
+      "knight mounted on horse, half-length portrait showing rider from waist up
+      with hands visible and horse head and neck, no legs visible, no hooves,
+      full head visible with space above, plain solid color background, centered".
+   d. Avoid textured, gradient, or scenic backgrounds — they cause artifacts.
+   e. Do NOT use "close-up" or "zoomed in" — it crops too tight.
+   f. The pipeline includes automatic leg detection (detect_legs) which warns
+      if the bottom 30% of the figure has <30% fill (thin content = legs).
+      If triggered, regenerate with a better prompt.
 
 ASSET ORIENTATION (for imagine --orientation):
 - Background top-half: square (card top is ~400×369, nearly 1:1)
@@ -312,8 +323,9 @@ class DeckCreator:
     # Uses the SAME background as low-value cards.
     #
     # PROMPT RULE: When generating figure images with AI (imagine),
-    # always specify "plain solid color background" (e.g. white, black,
-    # or single flat color) so rembg can cleanly remove it.
+    # always specify "plain solid color background" so rembg can cleanly
+    # remove it. All figures must be HALF-LENGTH PORTRAITS (waist up,
+    # no legs). Knights must also show the horse head.
     # Avoid textured/gradient/scenic backgrounds — they cause artifacts.
     # ─────────────────────────────────────────────
 
@@ -339,31 +351,38 @@ class DeckCreator:
 
         # Layer 2: Figure — auto-fit to card's top half
         # 
-        # Pipeline: raw figure (any size) → crop transparent edges →
-        # crop bottom up to content (no blank gap at center) →
-        # anchor to top of half-canvas → mirror → paste.
-        # This guarantees halves touch at center.
+        # Pipeline: raw figure (any size) → crop to bounding box →
+        # crop bottom until reaching a row where >45% is non-blank →
+        # anchor to bottom of half-canvas → mirror → paste.
+        # This guarantees halves touch at center with solid content.
         #
         raw_figure = Image.open(figure_top_path).convert("RGBA")
         
-        # Crop to content bounds (trim all transparent edges)
+        # Step A: Crop to content bounding box (trim all transparent edges)
         content_bbox = raw_figure.getbbox()
         if content_bbox:
             raw_figure = raw_figure.crop(content_bbox)
         
-        # Crop bottom: remove transparent rows from the bottom
-        # so the figure's lowest visible pixel is at the image edge.
-        # This eliminates blank gaps when mirrored at the card center.
+        # Step A.5: Leg detection — if legs found, cut image in half
+        has_legs, avg_fill = self.detect_legs(raw_figure)
+        if has_legs:
+            fw, fh = raw_figure.size
+            raw_figure = raw_figure.crop((0, 0, fw, fh // 2))
+            print(f"⚠️  Legs detected (bottom 30% fill: {avg_fill:.1%}). "
+                  f"Cut image in half horizontally.")
+        
+        # Step B: Crop bottom — scan upward until >50% of the row is non-blank
         alpha = raw_figure.split()[3]
         fw, fh = raw_figure.size
+        threshold = 0.50
         bottom_row = fh - 1
         for y in range(fh - 1, -1, -1):
             row_pixels = list(alpha.crop((0, y, fw, y + 1)).getdata())
-            if any(p > 10 for p in row_pixels):
+            non_blank = sum(1 for p in row_pixels if p > 10) / fw
+            if non_blank >= threshold:
                 bottom_row = y
                 break
-        if bottom_row < fh - 1:
-            raw_figure = raw_figure.crop((0, 0, fw, bottom_row + 1))
+        raw_figure = raw_figure.crop((0, 0, fw, bottom_row + 1))
         
         fw, fh = raw_figure.size
         half_h = self.h // 2
@@ -492,22 +511,31 @@ class DeckCreator:
         # Layer 2: Joker figure (asset IS the top half)
         raw_joker = Image.open(joker_top_half_path).convert("RGBA")
         
-        # Crop to content bounds
+        # Step A: Crop to content bounding box
         content_bbox = raw_joker.getbbox()
         if content_bbox:
             raw_joker = raw_joker.crop(content_bbox)
         
-        # Crop bottom: remove transparent rows from bottom
+        # Step A.5: Leg detection — if legs found, cut image in half
+        has_legs, avg_fill = self.detect_legs(raw_joker)
+        if has_legs:
+            jw, jh = raw_joker.size
+            raw_joker = raw_joker.crop((0, 0, jw, jh // 2))
+            print(f"⚠️  Legs detected on excuse figure (bottom 30% fill: {avg_fill:.1%}). "
+                  f"Cut image in half horizontally.")
+        
+        # Step B: Crop bottom — scan upward until >50% of the row is non-blank
         alpha = raw_joker.split()[3]
         jw, jh = raw_joker.size
+        threshold = 0.50
         bottom_row = jh - 1
         for y in range(jh - 1, -1, -1):
             row_pixels = list(alpha.crop((0, y, jw, y + 1)).getdata())
-            if any(p > 10 for p in row_pixels):
+            non_blank = sum(1 for p in row_pixels if p > 10) / jw
+            if non_blank >= threshold:
                 bottom_row = y
                 break
-        if bottom_row < jh - 1:
-            raw_joker = raw_joker.crop((0, 0, jw, bottom_row + 1))
+        raw_joker = raw_joker.crop((0, 0, jw, bottom_row + 1))
         
         jw, jh = raw_joker.size
         half_h = self.h // 2
@@ -542,6 +570,41 @@ class DeckCreator:
         card.save(output_path)
         print(f"✅ Excuse: {output_path}")
         return card
+
+    # ─────────────────────────────────────────────
+    # Helper: Detect if figure likely has legs
+    # ─────────────────────────────────────────────
+
+    @staticmethod
+    def detect_legs(img_rgba):
+        """
+        Heuristic leg detection on a transparent-bg figure.
+        
+        Two checks:
+        1. Bottom 30% fill < 40% (thin content = legs)
+        2. Aspect ratio: if height > 1.2 * width after bbox crop,
+           the figure is likely full-body (half-length should be ~square)
+        
+        Returns: (has_legs: bool, avg_fill: float)
+        """
+        alpha = img_rgba.split()[3]
+        fw, fh = img_rgba.size
+        
+        # Check 1: bottom fill
+        start_y = int(fh * 0.7)
+        total_fill = 0.0
+        rows = 0
+        for y in range(start_y, fh):
+            row_pixels = list(alpha.crop((0, y, fw, y + 1)).getdata())
+            total_fill += sum(1 for p in row_pixels if p > 10) / fw
+            rows += 1
+        avg_fill = total_fill / max(rows, 1)
+        
+        # Check 2: aspect ratio (full-body figures are tall and narrow)
+        too_tall = fh > fw * 1.2
+        
+        has_legs = avg_fill < 0.40 or too_tall
+        return has_legs, avg_fill
 
     # ─────────────────────────────────────────────
     # Helper: Add corner text (value + suit symbol image)
