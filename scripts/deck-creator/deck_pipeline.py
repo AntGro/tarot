@@ -339,16 +339,31 @@ class DeckCreator:
 
         # Layer 2: Figure — auto-fit to card's top half
         # 
-        # Pipeline: raw figure (any size) → crop to content bounds →
-        # fit into a canvas of exactly (card_width × card_height/2) →
-        # mirror → paste. This guarantees halves touch at center.
+        # Pipeline: raw figure (any size) → crop transparent edges →
+        # crop bottom up to content (no blank gap at center) →
+        # anchor to top of half-canvas → mirror → paste.
+        # This guarantees halves touch at center.
         #
         raw_figure = Image.open(figure_top_path).convert("RGBA")
         
-        # Crop to content bounds (trim transparent edges)
+        # Crop to content bounds (trim all transparent edges)
         content_bbox = raw_figure.getbbox()
         if content_bbox:
             raw_figure = raw_figure.crop(content_bbox)
+        
+        # Crop bottom: remove transparent rows from the bottom
+        # so the figure's lowest visible pixel is at the image edge.
+        # This eliminates blank gaps when mirrored at the card center.
+        alpha = raw_figure.split()[3]
+        fw, fh = raw_figure.size
+        bottom_row = fh - 1
+        for y in range(fh - 1, -1, -1):
+            row_pixels = list(alpha.crop((0, y, fw, y + 1)).getdata())
+            if any(p > 10 for p in row_pixels):
+                bottom_row = y
+                break
+        if bottom_row < fh - 1:
+            raw_figure = raw_figure.crop((0, 0, fw, bottom_row + 1))
         
         fw, fh = raw_figure.size
         half_h = self.h // 2
@@ -363,11 +378,12 @@ class DeckCreator:
         
         scaled_figure = raw_figure.resize((scaled_w, scaled_h), Image.LANCZOS)
         
-        # Create top-half canvas and paste figure centered,
-        # cropping any overflow
+        # Create top-half canvas and paste figure:
+        # - horizontally centered
+        # - anchored to BOTTOM of canvas (so it meets the mirror at center)
         top_canvas = Image.new("RGBA", (self.w, half_h), (0, 0, 0, 0))
         paste_x = (self.w - scaled_w) // 2
-        paste_y = (half_h - scaled_h) // 2
+        paste_y = half_h - scaled_h  # anchor to bottom edge
         top_canvas.paste(scaled_figure, (paste_x, paste_y), scaled_figure)
         
         # Mirror for bottom half
@@ -474,26 +490,51 @@ class DeckCreator:
         card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
 
         # Layer 2: Joker figure (asset IS the top half)
-        top_joker = Image.open(joker_top_half_path).convert("RGBA")
-        jw, jh = top_joker.size
-        bottom_joker = top_joker.rotate(180)
-
-        full_joker = Image.new("RGBA", (jw, jh * 2), (0, 0, 0, 0))
-        full_joker.paste(top_joker, (0, 0))
-        full_joker.paste(bottom_joker, (0, jh))
-
-        # Resize to fit card (with margin)
-        margin = int(self.w * 0.08)
-        joker_w = self.w - 2 * margin
-        joker_h = int(joker_w * (jh * 2) / jw)
-        if joker_h > self.h - 2 * margin:
-            joker_h = self.h - 2 * margin
-            joker_w = int(joker_h * jw / (jh * 2))
-        full_joker = full_joker.resize((joker_w, joker_h), Image.LANCZOS)
-
-        jx = (self.w - joker_w) // 2
-        jy = (self.h - joker_h) // 2
-        card.paste(full_joker, (jx, jy), full_joker)
+        raw_joker = Image.open(joker_top_half_path).convert("RGBA")
+        
+        # Crop to content bounds
+        content_bbox = raw_joker.getbbox()
+        if content_bbox:
+            raw_joker = raw_joker.crop(content_bbox)
+        
+        # Crop bottom: remove transparent rows from bottom
+        alpha = raw_joker.split()[3]
+        jw, jh = raw_joker.size
+        bottom_row = jh - 1
+        for y in range(jh - 1, -1, -1):
+            row_pixels = list(alpha.crop((0, y, jw, y + 1)).getdata())
+            if any(p > 10 for p in row_pixels):
+                bottom_row = y
+                break
+        if bottom_row < jh - 1:
+            raw_joker = raw_joker.crop((0, 0, jw, bottom_row + 1))
+        
+        jw, jh = raw_joker.size
+        half_h = self.h // 2
+        
+        # Scale to fit top half
+        scale_w = self.w / jw
+        scale_h = half_h / jh
+        scale = min(scale_w, scale_h)
+        scaled_w = int(jw * scale)
+        scaled_h = int(jh * scale)
+        scaled_joker = raw_joker.resize((scaled_w, scaled_h), Image.LANCZOS)
+        
+        # Create top-half canvas, anchored to bottom so halves touch
+        top_canvas = Image.new("RGBA", (self.w, half_h), (0, 0, 0, 0))
+        paste_x = (self.w - scaled_w) // 2
+        paste_y = half_h - scaled_h
+        top_canvas.paste(scaled_joker, (paste_x, paste_y), scaled_joker)
+        
+        # Mirror for bottom half
+        bottom_canvas = top_canvas.rotate(180)
+        
+        # Combine
+        full_joker = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        full_joker.paste(top_canvas, (0, 0))
+        full_joker.paste(bottom_canvas, (0, half_h))
+        
+        card.paste(full_joker, (0, 0), full_joker)
 
         # Layer 3: "EXCUSE" text (on top of everything)
         card = self._add_excuse_text(card)
