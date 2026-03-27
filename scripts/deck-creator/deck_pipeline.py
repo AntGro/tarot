@@ -879,7 +879,7 @@ class DeckCreator:
         star_color = (inv_r, inv_g, inv_b, 255)
 
         # Star parameters
-        star_size = int(self.w * 0.05)  # radius of outer points
+        star_size = int(self.w * 0.03)  # radius of outer points
         margin_x = int(self.w * 0.04)
         margin_y = int(self.h * 0.02)
 
