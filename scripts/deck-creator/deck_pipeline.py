@@ -841,26 +841,84 @@ class DeckCreator:
         return img
 
     def _add_excuse_text(self, img):
-        """Add 'EXCUSE' text to top and bottom of card."""
+        """Add five-pointed stars in all 4 corners of the excuse card.
+        Star color contrasts with the dominant background color."""
+        import math
+        from collections import Counter
+
+        # Detect dominant background color from corner regions
+        rgb_img = img.convert("RGB")
+        corner_size = int(self.w * 0.15)
+        corner_pixels = []
+        for region in [
+            (0, 0, corner_size, corner_size),
+            (self.w - corner_size, 0, self.w, corner_size),
+            (0, self.h - corner_size, corner_size, self.h),
+            (self.w - corner_size, self.h - corner_size, self.w, self.h),
+        ]:
+            crop = rgb_img.crop(region)
+            # Quantize to reduce unique colors
+            for px in crop.getdata():
+                q = (px[0] // 32 * 32, px[1] // 32 * 32, px[2] // 32 * 32)
+                corner_pixels.append(q)
+
+        dominant = Counter(corner_pixels).most_common(1)[0][0]
+        # Compute contrasting color: invert the dominant and boost saturation
+        # Convert to HSL, rotate hue by 180°, maximize saturation
+        r, g, b = dominant
+        # Simple high-contrast: invert each channel
+        inv_r, inv_g, inv_b = 255 - r, 255 - g, 255 - b
+        # If inverted is too close to mid-gray, push toward gold or white
+        inv_lum = 0.299 * inv_r + 0.587 * inv_g + 0.114 * inv_b
+        if 80 < inv_lum < 175:
+            # Too muddy — push to extremes
+            if inv_lum >= 128:
+                inv_r, inv_g, inv_b = min(255, inv_r + 80), min(255, inv_g + 60), max(0, inv_b - 40)
+            else:
+                inv_r, inv_g, inv_b = max(0, inv_r - 60), max(0, inv_g - 60), min(255, inv_b + 80)
+        star_color = (inv_r, inv_g, inv_b, 255)
+
+        # Star parameters
+        star_size = int(self.w * 0.05)  # radius of outer points
+        margin_x = int(self.w * 0.04)
+        margin_y = int(self.h * 0.02)
+
+        def star_polygon(cx, cy, r_outer, r_inner, n_points=5, point_angle=None):
+            """Generate vertices for an n-pointed star.
+            point_angle: absolute angle (radians, math convention) where
+                         the first outer point should be placed."""
+            base = point_angle if point_angle is not None else math.pi / 2
+            points = []
+            for i in range(n_points * 2):
+                r = r_outer if i % 2 == 0 else r_inner
+                angle = base + i * math.pi / n_points
+                points.append((cx + r * math.cos(angle), cy - r * math.sin(angle)))
+            return points
+
+        r_inner = int(star_size * 0.38)
+
+        # Compute exact angle from each star center to its nearest corner
+        tl_cx = margin_x + star_size
+        tl_cy = margin_y + star_size
+        tr_cx = self.w - margin_x - star_size
+        tr_cy = margin_y + star_size
+
+        # Angle from star center to corner (math convention: y-up)
+        # Top-left star → corner (0, 0): dx negative, screen dy negative = math dy positive
+        tl_angle = math.atan2(tl_cy, -tl_cx)  # toward (0,0) in screen = up-left in math
+        # Top-right star → corner (w, 0): dx positive, screen dy negative = math dy positive
+        tr_angle = math.atan2(tr_cy, self.w - tr_cx)
+
+        # Draw stars on top-left and top-right
         draw = ImageDraw.Draw(img)
-        font_size = max(14, int(self.w * 0.07))
-        top_margin = max(4, int(self.h * 0.013))
-        font = self._load_font(font_size)
-        stroke_w = max(1, int(self.w * 0.003))
+        draw.polygon(star_polygon(tl_cx, tl_cy, star_size, r_inner, point_angle=tl_angle), fill=star_color)
+        draw.polygon(star_polygon(tr_cx, tr_cy, star_size, r_inner, point_angle=tr_angle), fill=star_color)
 
-        text = "EXCUSE"
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw = bbox[2] - bbox[0]
-
-        # Top center
-        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
-                  stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
-
-        # Bottom center (rotated for symmetry)
+        # Bottom stars via 180° rotation (automatically points toward bottom corners)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
-                       stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
+        temp_draw.polygon(star_polygon(tl_cx, tl_cy, star_size, r_inner, point_angle=tl_angle), fill=star_color)
+        temp_draw.polygon(star_polygon(tr_cx, tr_cy, star_size, r_inner, point_angle=tr_angle), fill=star_color)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
