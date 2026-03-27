@@ -447,54 +447,63 @@ class DeckCreator:
     # ─────────────────────────────────────────────
 
     def assemble_trump(self, number, top_image_path, bottom_image_path,
-                       number_ornament_path, output_path):
+                       background_path, output_path):
         """
         Assemble a trump card.
 
-        Top and bottom illustrations have the SAME size.
-        Number ornaments are placed at TOP and BOTTOM of the card
-        (Grimaud style), overlaid on the illustrations.
-        If bottom_image_path is None, top is mirrored for bottom.
+        Layout (top to bottom):
+        - Number zone: top strip (card_h - 2 * scene_h) / 2
+        - Top scene: 3:2 landscape crop, scaled to card_w × scene_h
+        - Bottom scene: 3:2 landscape crop, rotated 180°, meets top at center
+        - Number zone: bottom strip (rotated 180°)
+
+        Input images should be landscape (1440×810 from imagine).
+        They are center-cropped to 3:2 ratio, then scaled to card width.
+        If bottom_image_path is None, top scene is rotated 180° for bottom.
         """
-        # Each illustration takes half the card
-        illustration_h = self.h // 2
+        # Scene dimensions: 3:2 ratio → height = card_w / 1.5
+        scene_h = int(self.w / 1.5)  # 400/1.5 = 267
+        number_zone_h = (self.h - 2 * scene_h) // 2  # (738 - 534) / 2 = 102
 
-        # Load top image
-        top_img = Image.open(top_image_path).convert("RGBA")
-        top_img = top_img.resize((self.w, illustration_h), Image.LANCZOS)
+        def crop_landscape_to_3_2(img_path):
+            """Center-crop a landscape image to 3:2 ratio, scale to card width."""
+            img = Image.open(img_path).convert("RGBA")
+            iw, ih = img.size
+            # Target 3:2 from the image
+            target_w = int(ih * 1.5)
+            if target_w <= iw:
+                # Crop width (center)
+                left = (iw - target_w) // 2
+                img = img.crop((left, 0, left + target_w, ih))
+            else:
+                # Crop height (center)
+                target_h = int(iw / 1.5)
+                top = (ih - target_h) // 2
+                img = img.crop((0, top, iw, top + target_h))
+            # Scale to card width × scene height
+            img = img.resize((self.w, scene_h), Image.LANCZOS)
+            return img
 
+        # Load and crop scenes
+        top_scene = crop_landscape_to_3_2(top_image_path)
         if bottom_image_path:
-            bottom_img = Image.open(bottom_image_path).convert("RGBA")
-            bottom_img = bottom_img.resize((self.w, illustration_h), Image.LANCZOS)
+            bottom_scene = crop_landscape_to_3_2(bottom_image_path)
+            bottom_scene = bottom_scene.rotate(180)
         else:
-            bottom_img = top_img.rotate(180)
+            bottom_scene = top_scene.rotate(180)
 
-        # Create canvas
-        canvas = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        # Create canvas with background
+        if background_path:
+            canvas = Image.open(background_path).convert("RGBA").resize(
+                (self.w, self.h), Image.LANCZOS)
+        else:
+            canvas = Image.new("RGBA", (self.w, self.h), (255, 255, 255, 255))
 
-        # Place illustrations (top + bottom, full card)
-        canvas.paste(top_img, (0, 0))
-        canvas.paste(bottom_img, (0, illustration_h))
+        # Place scenes — they meet at the center
+        canvas.paste(top_scene, (0, number_zone_h), top_scene)
+        canvas.paste(bottom_scene, (0, number_zone_h + scene_h), bottom_scene)
 
-        # Number ornaments at top and bottom (Grimaud style)
-        if number_ornament_path:
-            ornament = Image.open(number_ornament_path).convert("RGBA")
-            # Ornament size: ~12% of card height
-            orn_h = int(self.h * 0.12)
-            orn_w = int(orn_h * ornament.width / ornament.height)
-            ornament = ornament.resize((orn_w, orn_h), Image.LANCZOS)
-
-            # Top ornament — centered horizontally, near top
-            ox = (self.w - orn_w) // 2
-            oy_top = int(self.h * 0.02)
-            canvas.paste(ornament, (ox, oy_top), ornament)
-
-            # Bottom ornament — rotated 180°, near bottom
-            ornament_bottom = ornament.rotate(180)
-            oy_bottom = self.h - oy_top - orn_h
-            canvas.paste(ornament_bottom, (ox, oy_bottom), ornament_bottom)
-
-        # Add number text at top and bottom
+        # Add number text in the top and bottom zones
         canvas = self._add_trump_number_grimaud(canvas, number)
 
         canvas.save(output_path)
@@ -790,25 +799,41 @@ class DeckCreator:
         return img
 
     def _add_trump_number_grimaud(self, img, number):
-        """Add trump number at top and bottom of card (Grimaud style)."""
+        """Add trump number in all 4 corners of the number zones."""
         draw = ImageDraw.Draw(img)
-        font_size = max(18, int(self.w * 0.09))
-        top_margin = max(4, int(self.h * 0.01))
+        font_size = max(18, int(self.h * 0.11))
         font = self._load_font(font_size)
         stroke_w = max(1, int(self.w * 0.003))
+        margin = max(4, int(self.w * 0.06))
 
         text = str(number)
         bbox = draw.textbbox((0, 0), text, font=font)
         tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        # Adjust for font ascent offset
+        t_top = bbox[1]
 
-        # Top center
-        draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
+        # Number zone height
+        scene_h = int(self.w / 1.5)
+        number_zone_h = (self.h - 2 * scene_h) // 2
+
+        # Vertical center within number zone
+        ty = (number_zone_h - th) // 2 - t_top
+
+        # Top-left
+        draw.text((margin, ty), text, fill=(0, 0, 0, 255), font=font,
                   stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
 
-        # Bottom center (rotated for symmetry)
+        # Top-right
+        draw.text((self.w - margin - tw, ty), text, fill=(0, 0, 0, 255), font=font,
+                  stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
+
+        # Bottom-left and bottom-right (rotated 180° for symmetry)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text(((self.w - tw) // 2, top_margin), text, fill=(0, 0, 0, 255), font=font,
+        temp_draw.text((margin, ty), text, fill=(0, 0, 0, 255), font=font,
+                       stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
+        temp_draw.text((self.w - margin - tw, ty), text, fill=(0, 0, 0, 255), font=font,
                        stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
