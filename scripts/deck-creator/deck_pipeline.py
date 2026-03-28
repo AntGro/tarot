@@ -344,18 +344,16 @@ class DeckCreator:
             output_path: where to save
             symbol_path: suit symbol image (optional; falls back to text)
         
-        Stack: background → figure (mirrored) → corners
+        Pipeline:
+        1. Build inner card (white bg + figure + corners) at full size
+        2. Downscale to 96%
+        3. Add thin black border with rounded corners
+        4. Paste centered on custom background
         """
-        # Layer 1: Shared background
-        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+        # ── Step 1: Build inner card on transparent background ──
+        inner = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
 
-        # Layer 2: Figure — auto-fit to card's top half
-        # 
-        # Pipeline: raw figure (any size) → crop to bounding box →
-        # crop bottom until reaching a row where >45% is non-blank →
-        # anchor to bottom of half-canvas → mirror → paste.
-        # This guarantees halves touch at center with solid content.
-        #
+        # Figure — auto-fit to card's top half
         raw_figure = Image.open(figure_top_path).convert("RGBA")
         
         # Step A: Crop to content bounding box (trim all transparent edges)
@@ -424,15 +422,57 @@ class DeckCreator:
         full_figure.paste(top_canvas, (0, 0))
         full_figure.paste(bottom_canvas, (0, half_h))
         
-        card.paste(full_figure, (0, 0), full_figure)
+        inner.paste(full_figure, (0, 0), full_figure)
 
-        # Layer 3: Corner letter + suit (ON TOP of figure)
+        # Add corners (letter + suit) on the inner card
         letter = HIGH_RANKS[rank]
         if symbol_path:
             symbol = Image.open(symbol_path).convert("RGBA")
-            card = self._add_corners_face(card, letter, symbol, suit)
+            inner = self._add_corners_face(inner, letter, symbol, suit)
         else:
-            card = self._add_corners_text(card, letter, suit)
+            inner = self._add_corners_text(inner, letter, suit)
+
+        # ── Step 2: Crop 2% from left and right, then downscale to 97.5% ──
+        crop_x = int(self.w * 0.02)
+        inner_cropped = inner.crop((crop_x, 0, self.w - crop_x, self.h))
+        cropped_w, cropped_h = inner_cropped.size
+        inner_w = int(cropped_w * 0.975)
+        inner_h = int(cropped_h * 0.975)
+        inner_scaled = inner_cropped.resize((inner_w, inner_h), Image.LANCZOS)
+
+        # ── Step 3: Add thin black border with rounded corners ──
+        corner_radius = int(self.w * 0.04)
+        border_width = max(1, int(self.w * 0.005))
+        
+        # Create a rounded rectangle mask
+        mask = Image.new("L", (inner_w, inner_h), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle(
+            [(0, 0), (inner_w - 1, inner_h - 1)],
+            radius=corner_radius,
+            fill=255
+        )
+        
+        # Apply mask to inner card (clip to rounded corners)
+        inner_rounded = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+        inner_rounded.paste(inner_scaled, (0, 0), mask)
+        
+        # Draw border on top
+        border_layer = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+        border_draw = ImageDraw.Draw(border_layer)
+        border_draw.rounded_rectangle(
+            [(0, 0), (inner_w - 1, inner_h - 1)],
+            radius=corner_radius,
+            outline=(0, 0, 0, 255),
+            width=border_width
+        )
+        inner_rounded = Image.alpha_composite(inner_rounded, border_layer)
+
+        # ── Step 4: Paste centered on custom background ──
+        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+        paste_x = (self.w - inner_w) // 2
+        paste_y = (self.h - inner_h) // 2
+        card.paste(inner_rounded, (paste_x, paste_y), inner_rounded)
 
         card.save(output_path)
         print(f"✅ {rank} of {suit}: {output_path}")
