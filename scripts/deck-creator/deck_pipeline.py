@@ -198,9 +198,47 @@ class DeckCreator:
         center_sym_down = center_sym.rotate(180)
 
         positions = self._get_symbol_positions(value, center_size)
+
+        # Compute corner zone for vertical crop (left/right side removal)
+        font_size = max(16, int(self.w * 0.20))
+        font = self._load_font(font_size)
+        stroke_w = max(1, int(self.w * 0.003))
+        letter_spacing = round(self.w * 0.5 / 200)  # 0.5px at 200w
+        draw = ImageDraw.Draw(card)
+        # Use widest possible text ("10") for corner zone
+        num_tw = self._measure_text_spaced(draw, "10", font, stroke_w, letter_spacing)
+        margin = max(6, int(self.w * 0.03))
+        margin_y = max(6, int(self.w * 0.055))
+        corner_sym_size = max(16, int(self.w * 0.095))
+        sym_offset = int(font_size * 0.81)
+        crop_pad = round(self.w * 5 / 200)  # 5px at 200w
+        corner_zone_w = margin + max(num_tw, num_tw // 2 + corner_sym_size // 2) + crop_pad
+        corner_zone_r = self.w - corner_zone_w
+        corner_bottom = margin_y + sym_offset + corner_sym_size
+        col_inset = int(self.w * 0.055)
+        col_right_x = self.w - col_inset - center_size
+
         for x, y, direction in positions:
-            # direction: "up" or "down"
             s = center_sym_down if direction == "down" else center_sym
+            sym_bottom = y + center_size
+            overlaps_top = (y < corner_bottom and sym_bottom > margin_y)
+            overlaps_bot = (sym_bottom > (self.h - corner_bottom) and y < (self.h - margin_y))
+
+            if (overlaps_top or overlaps_bot) and x <= col_inset and x < corner_zone_w:
+                # Left column near corner: crop LEFT side
+                ov = corner_zone_w - x
+                if 0 < ov < center_size:
+                    cropped = s.crop((ov, 0, center_size, center_size))
+                    card.paste(cropped, (corner_zone_w, y), cropped)
+                    continue
+            if (overlaps_top or overlaps_bot) and x >= col_right_x and (x + center_size) > corner_zone_r:
+                # Right column near corner: crop RIGHT side
+                ov = (x + center_size) - corner_zone_r
+                if 0 < ov < center_size:
+                    cropped = s.crop((0, 0, center_size - ov, center_size))
+                    card.paste(cropped, (x, y), cropped)
+                    continue
+
             card.paste(s, (x, y), s)
 
         # Layer 3: Corner value + symbol
@@ -225,10 +263,10 @@ class DeckCreator:
         All positions account for corner labels (~12% top/bottom margin).
         """
         cx = self.w // 2 - sym_size // 2
-        # Two columns at 5.5% inset from card edge
+        # Two columns at 5.5% inset from card edge (left edge of symbol at inset)
         col_inset = int(self.w * 0.055)
-        lx = col_inset - sym_size // 2
-        rx = self.w - col_inset - sym_size // 2
+        lx = col_inset
+        rx = self.w - col_inset - sym_size
 
         # Top row Y: center of symbol at 10% of card height
         r1_center = int(self.h * 0.10)
@@ -733,12 +771,12 @@ class DeckCreator:
         """
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
-        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+        font_color = (220, 20, 60, 255) if color == "red" else (0, 0, 0, 255)
 
         font_size = max(16, int(self.w * 0.20))
         font = self._load_font(font_size)
         stroke_w = max(1, int(self.w * 0.003))
-        letter_spacing = max(0, int(self.w * 0.5 / 400))  # 0.5px at 400w
+        letter_spacing = round(self.w * 0.5 / 200)  # 0.5px at 200w
 
         margin = max(6, int(self.w * 0.03))
         margin_y = max(6, int(self.w * 0.055))
@@ -809,7 +847,7 @@ class DeckCreator:
         Uses same margin/font params as simple cards."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
-        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+        font_color = (220, 20, 60, 255) if color == "red" else (0, 0, 0, 255)
 
         font_size = max(14, int(self.w * 0.20))
         font = self._load_font(font_size)
@@ -877,7 +915,7 @@ class DeckCreator:
         """Add letter (V/C/D/R) and suit symbol text to corners (fallback without symbol image)."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
-        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+        font_color = (220, 20, 60, 255) if color == "red" else (0, 0, 0, 255)
         symbol = SUIT_SYMBOLS[suit]
 
         font_size = max(14, int(self.w * 0.20))
