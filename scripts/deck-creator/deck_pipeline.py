@@ -563,12 +563,16 @@ class DeckCreator:
         Joker asset is the TOP-HALF figure — we mirror it for the bottom.
         Uses the shared background.
 
-        Stack: background → joker figure (mirrored) → "EXCUSE" text
+        Pipeline:
+        1. Build inner card (transparent bg + figure + corner stars)
+        2. Crop 2% from left/right, downscale to 97.5%
+        3. Add thin black border with rounded corners
+        4. Paste centered on custom background
         """
-        # Layer 1: Background
-        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+        # ── Step 1: Build inner card on transparent background ──
+        inner = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
 
-        # Layer 2: Joker figure (asset IS the top half)
+        # Joker figure (asset IS the top half)
         raw_joker = Image.open(joker_top_half_path).convert("RGBA")
         
         # Step A: Crop to content bounding box
@@ -632,9 +636,52 @@ class DeckCreator:
         full_joker.paste(top_canvas, (0, 0))
         full_joker.paste(bottom_canvas, (0, half_h))
         
-        card.paste(full_joker, (0, 0), full_joker)
+        inner.paste(full_joker, (0, 0), full_joker)
 
-        # Layer 3: "EXCUSE" text (on top of everything)
+        # Add corner stars (need background for color detection — use the actual bg)
+        # We'll add stars after compositing onto background, so detect color from bg
+        bg_img = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+
+        # ── Step 2: Crop 2% from left/right, downscale to 97.5% ──
+        crop_x = int(self.w * 0.02)
+        inner_cropped = inner.crop((crop_x, 0, self.w - crop_x, self.h))
+        cropped_w, cropped_h = inner_cropped.size
+        inner_w = int(cropped_w * 0.975)
+        inner_h = int(cropped_h * 0.975)
+        inner_scaled = inner_cropped.resize((inner_w, inner_h), Image.LANCZOS)
+
+        # ── Step 3: Add thin black border with rounded corners ──
+        corner_radius = int(self.w * 0.04)
+        border_width = max(1, int(self.w * 0.005))
+        
+        mask = Image.new("L", (inner_w, inner_h), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle(
+            [(0, 0), (inner_w - 1, inner_h - 1)],
+            radius=corner_radius,
+            fill=255
+        )
+        
+        inner_rounded = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+        inner_rounded.paste(inner_scaled, (0, 0), mask)
+        
+        border_layer = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+        border_draw = ImageDraw.Draw(border_layer)
+        border_draw.rounded_rectangle(
+            [(0, 0), (inner_w - 1, inner_h - 1)],
+            radius=corner_radius,
+            outline=(0, 0, 0, 255),
+            width=border_width
+        )
+        inner_rounded = Image.alpha_composite(inner_rounded, border_layer)
+
+        # ── Step 4: Paste centered on custom background ──
+        card = bg_img.copy()
+        paste_x = (self.w - inner_w) // 2
+        paste_y = (self.h - inner_h) // 2
+        card.paste(inner_rounded, (paste_x, paste_y), inner_rounded)
+
+        # Add corner stars on top of everything
         card = self._add_excuse_text(card)
 
         card.save(output_path)
