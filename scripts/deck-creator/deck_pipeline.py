@@ -193,7 +193,7 @@ class DeckCreator:
 
         # Layer 2: Suit symbols at standard positions
         symbol = Image.open(symbol_path).convert("RGBA")
-        center_size = int(self.w * 0.20)
+        center_size = max(16, int(self.w * 0.10 * 2.5))
         center_sym = symbol.resize((center_size, center_size), Image.LANCZOS)
         center_sym_down = center_sym.rotate(180)
 
