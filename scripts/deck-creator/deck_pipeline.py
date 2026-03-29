@@ -902,7 +902,13 @@ class DeckCreator:
         draw = ImageDraw.Draw(img)
         # Text-only fallback — no symbol image available, use suit color map
         color = SUIT_COLORS[suit]
-        font_color = (220, 20, 60, 255) if color == "red" else (50, 50, 50, 255)
+        # Derive font color from suit symbol Unicode character
+        # Red suits → crimson derived from dominant rendering, Black suits → dark
+        SUIT_COLOR_MAP = {
+            "red": (220, 20, 60, 255),
+            "black": (50, 50, 50, 255),
+        }
+        font_color = SUIT_COLOR_MAP.get(color, (0, 0, 0, 255))
         symbol = SUIT_SYMBOLS[suit]
 
         font_size = corner_font_size(self.w)
@@ -941,44 +947,207 @@ class DeckCreator:
         return img
 
     def _add_trump_number_grimaud(self, img, number):
-        """Add trump number in all 4 corners of the number zones."""
-        draw = ImageDraw.Draw(img)
-        font_size = max(18, int(self.h * 0.11))
+        """Add trump number in all 4 corners of the number zones,
+        with a thin border around the top pair and bottom pair.
+        Renders at 4× resolution for anti-aliased curves, then downscales."""
+        SS = 4  # supersampling factor
+        w_ss, h_ss = self.w * SS, self.h * SS
+
+        # Create supersampled overlay
+        overlay = Image.new("RGBA", (w_ss, h_ss), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+
+        font_size = max(18, int(h_ss * 0.11 / SS)) * SS
         font = self._load_font(font_size)
-        stroke_w = max(1, int(self.w * 0.003))
-        margin = max(4, int(self.w * 0.06))
+        stroke_w = max(1, int(w_ss * 0.003))
+        margin = max(4, int(w_ss * 0.10))
+
+        # Compute digit color as inverse of average background in number zone
+        # (sample from original image, not supersampled)
+        scene_h_orig = int(self.w / 1.5)
+        nz_h_orig = (self.h - 2 * scene_h_orig) // 2
+        zone_crop = img.crop((0, 0, self.w, nz_h_orig)).convert("RGB")
+        import numpy as np
+        pixels = np.array(zone_crop)
+        avg_r, avg_g, avg_b = int(pixels[:,:,0].mean()), int(pixels[:,:,1].mean()), int(pixels[:,:,2].mean())
+        digit_color = (255 - avg_r, 255 - avg_g, 255 - avg_b, 255)
+        border_color = digit_color  # same color, full opacity
 
         text = str(number)
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw = bbox[2] - bbox[0]
+        # Extra letter spacing for 2-digit numbers
+        trump_spacing = int(font_size * 0.08) if len(text) > 1 else 0
+
+        # Measure total width with spacing
+        total_tw = 0
+        for i, ch in enumerate(text):
+            bb = draw.textbbox((0, 0), ch, font=font, stroke_width=stroke_w)
+            total_tw += bb[2] - bb[0]
+            if i < len(text) - 1:
+                total_tw += trump_spacing
+
+        bbox = draw.textbbox((0, 0), text[0], font=font, stroke_width=stroke_w)
         th = bbox[3] - bbox[1]
-        # Adjust for font ascent offset
         t_top = bbox[1]
 
-        # Number zone height
-        scene_h = int(self.w / 1.5)
-        number_zone_h = (self.h - 2 * scene_h) // 2
+        # Number zone height (supersampled)
+        scene_h = int(w_ss / 1.5)
+        number_zone_h = (h_ss - 2 * scene_h) // 2
 
         # Vertical center within number zone
         ty = (number_zone_h - th) // 2 - t_top
 
-        # Top-left
-        draw.text((margin, ty), text, fill=(0, 0, 0, 255), font=font,
-                  stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
+        def _draw_spaced_number(d, x_start, y):
+            cx = x_start
+            for i, ch in enumerate(text):
+                d.text((cx, y), ch, fill=digit_color, font=font,
+                       stroke_width=stroke_w, stroke_fill=digit_color)
+                bb = d.textbbox((0, 0), ch, font=font, stroke_width=stroke_w)
+                cx += (bb[2] - bb[0]) + trump_spacing
 
-        # Top-right
-        draw.text((self.w - margin - tw, ty), text, fill=(0, 0, 0, 255), font=font,
-                  stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
+        # ── Three separate bordered rectangles in the number zone ──
+        border_pad_pct = 0.03  # 3% from edges
+        gap_pct = 0.03         # 3% gap between adjacent borders
+        pad_x = int(w_ss * border_pad_pct)
+        pad_top = int(w_ss * border_pad_pct)
+        pad_bottom = int(w_ss * border_pad_pct)
+        gap = int(w_ss * gap_pct)
+        border_w = max(1, int(w_ss * 0.004))
+        corner_r = int(w_ss * 0.04)
 
-        # Bottom-left and bottom-right (rotated 180° for symmetry)
-        temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        # Common top/bottom for all 3 rectangles
+        rect_top = pad_top
+        rect_bot = number_zone_h - pad_bottom
+
+        # Compute fixed box width based on widest possible number ("21")
+        # so all trump cards have identical number box sizes
+        max_tw = 0
+        max_spacing = int(font_size * 0.08)  # 2-digit spacing
+        for ch in "21":
+            bb = draw.textbbox((0, 0), ch, font=font, stroke_width=stroke_w)
+            max_tw += bb[2] - bb[0]
+        max_tw += max_spacing  # always include 2-digit spacing
+
+        num_pad = int(w_ss * 0.02)
+        # Fixed box width: from pad_x to (margin + max_tw + num_pad)
+        left_box_right = margin + max_tw + num_pad
+
+        # Right number box: mirror of left
+        right_box_left = w_ss - margin - max_tw - num_pad
+
+        # Center box fills the space between left and right boxes with gaps
+        center_left = left_box_right + gap
+        center_right = right_box_left - gap
+
+        # ── Helper: generate arc points between two y-values ──
+        import math
+
+        def _arc_points(x, y_start, y_end, bulge, n=30):
+            """Points along a parabolic arc from (x, y_start) to (x, y_end).
+            Positive bulge = arc to the right, negative = to the left."""
+            pts = []
+            h = y_end - y_start
+            for i in range(n + 1):
+                t = i / n
+                y = y_start + t * h
+                dx = bulge * 4 * t * (1 - t)  # parabolic: max at midpoint
+                pts.append((x + dx, y))
+            return pts
+
+        def _rounded_corner_pts(cx, cy, r, start_deg, end_deg, n=8):
+            """Points along a circular arc for a rounded corner."""
+            pts = []
+            for i in range(n + 1):
+                t = i / n
+                angle = math.radians(start_deg + t * (end_deg - start_deg))
+                pts.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+            return pts
+
+        arc_bulge = int(w_ss * 0.04)  # 4% of card width
+
+        def _draw_box_outline(d, x1, y1, x2, y2,
+                              round_tl=False, round_tr=False,
+                              arc_left=0, arc_right=0):
+            """Draw box outline with optional rounded corners and arc sides.
+            arc_left/arc_right: positive=bulge right, negative=bulge left."""
+            r = corner_r
+            pts = []
+
+            # Top-left corner
+            if round_tl:
+                pts += _rounded_corner_pts(x1 + r, y1 + r, r, 180, 270)
+            else:
+                pts.append((x1, y1))
+
+            # Top-right corner
+            if round_tr:
+                pts += _rounded_corner_pts(x2 - r, y1 + r, r, 270, 360)
+            else:
+                pts.append((x2, y1))
+
+            # Right edge (straight or arc)
+            if arc_right != 0:
+                arc_pts = _arc_points(x2, y1, y2, arc_right)
+                pts += arc_pts[1:]  # skip first (already at top-right)
+            else:
+                pts.append((x2, y2))
+
+            # Bottom-left
+            pts.append((x1, y2))
+
+            # Left edge going up (straight or arc, reversed)
+            if arc_left != 0:
+                arc_pts = _arc_points(x1, y1, y2, arc_left)
+                reversed_pts = list(reversed(arc_pts))
+                pts += reversed_pts[1:]  # skip first (already at bottom-left)
+            else:
+                # Go up to where the rounded corner starts (or to y1 if no rounding)
+                if round_tl:
+                    pts.append((x1, y1 + r))
+                else:
+                    pts.append((x1, y1))
+
+            # Close the polygon
+            pts.append(pts[0])
+
+            # Draw as connected line segments
+            d.line(pts, fill=border_color, width=border_w, joint="curve")
+
+        # Draw 3 top boxes
+        # Left box: rounded top-left, arc right edge bulges right
+        _draw_box_outline(draw, pad_x, rect_top, left_box_right, rect_bot,
+                          round_tl=True, arc_right=arc_bulge)
+        # Center box: arc left edge bulges right, arc right edge bulges left
+        _draw_box_outline(draw, center_left, rect_top, center_right, rect_bot,
+                          arc_left=arc_bulge, arc_right=-arc_bulge)
+        # Right box: rounded top-right, arc left edge bulges left
+        _draw_box_outline(draw, right_box_left, rect_top, w_ss - pad_x, rect_bot,
+                          round_tr=True, arc_left=-arc_bulge)
+
+        # Top-left number — centered in left box
+        left_box_center_x = (pad_x + left_box_right) // 2
+        _draw_spaced_number(draw, left_box_center_x - total_tw // 2, ty)
+
+        # Top-right number — centered in right box
+        right_box_center_x = (right_box_left + w_ss - pad_x) // 2
+        _draw_spaced_number(draw, right_box_center_x - total_tw // 2, ty)
+
+        # Bottom boxes + numbers (rotated 180° for symmetry)
+        temp = Image.new("RGBA", (w_ss, h_ss), (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text((margin, ty), text, fill=(0, 0, 0, 255), font=font,
-                       stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
-        temp_draw.text((self.w - margin - tw, ty), text, fill=(0, 0, 0, 255), font=font,
-                       stroke_width=stroke_w, stroke_fill=(0, 0, 0, 255))
+        _draw_box_outline(temp_draw, pad_x, rect_top, left_box_right, rect_bot,
+                          round_tl=True, arc_right=arc_bulge)
+        _draw_box_outline(temp_draw, center_left, rect_top, center_right, rect_bot,
+                          arc_left=arc_bulge, arc_right=-arc_bulge)
+        _draw_box_outline(temp_draw, right_box_left, rect_top, w_ss - pad_x, rect_bot,
+                          round_tr=True, arc_left=-arc_bulge)
+        _draw_spaced_number(temp_draw, left_box_center_x - total_tw // 2, ty)
+        _draw_spaced_number(temp_draw, right_box_center_x - total_tw // 2, ty)
         temp = temp.rotate(180)
-        img = Image.alpha_composite(img, temp)
+        overlay = Image.alpha_composite(overlay, temp)
+
+        # Downscale supersampled overlay to original size and composite
+        overlay = overlay.resize((self.w, self.h), Image.LANCZOS)
+        img = Image.alpha_composite(img, overlay)
 
         return img
 
