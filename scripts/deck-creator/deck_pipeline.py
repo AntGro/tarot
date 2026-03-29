@@ -56,8 +56,8 @@ except ImportError:
     HAS_REMBG = False
 
 # Card dimensions
-DEFAULT_WIDTH = 400
-DEFAULT_HEIGHT = 738
+DEFAULT_WIDTH = 960
+DEFAULT_HEIGHT = 1771
 
 # Suits
 SUITS = ["hearts", "diamonds", "clubs", "spades"]
@@ -349,8 +349,18 @@ class DeckCreator:
         # ── Step 1: Build inner card on transparent background ──
         inner = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
 
-        # Figure — auto-fit to card's top half
+        # Figure — remove background if needed, then auto-fit to card's top half
         raw_figure = Image.open(figure_top_path).convert("RGBA")
+        
+        # Auto-detect if background removal is needed (no meaningful transparency)
+        alpha = raw_figure.split()[3]
+        transparent_pct = sum(1 for p in alpha.getdata() if p < 10) / (raw_figure.width * raw_figure.height)
+        if transparent_pct < 0.05:  # less than 5% transparent → needs rembg
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                nobg_path = tmp.name
+            raw_figure = self.remove_background(figure_top_path, nobg_path)
+            print(f"🔍 Auto-removed background ({transparent_pct:.1%} was transparent)")
         
         # Step A: Crop to content bounding box (trim all transparent edges)
         content_bbox = raw_figure.getbbox()
@@ -451,7 +461,7 @@ class DeckCreator:
         inner_scaled = inner_cropped.resize((inner_w, inner_h), Image.LANCZOS)
 
         # ── Step 3: Add thin black border with rounded corners ──
-        corner_radius = int(self.w * 0.04)
+        corner_radius = int(self.w * 0.06)
         border_width = max(1, int(self.w * 0.005))
         
         # Create a rounded rectangle mask
@@ -467,19 +477,26 @@ class DeckCreator:
         inner_rounded = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
         inner_rounded.paste(inner_scaled, (0, 0), mask)
         
+        # ── Step 4: Paste centered on custom background ──
+        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
+        
+        # Compute border color as inverse of average background color
+        import numpy as np
+        bg_arr = np.array(card.convert("RGB"))
+        avg_r, avg_g, avg_b = int(bg_arr[:,:,0].mean()), int(bg_arr[:,:,1].mean()), int(bg_arr[:,:,2].mean())
+        border_color = (255 - avg_r, 255 - avg_g, 255 - avg_b, 255)
+        
         # Draw border on top
         border_layer = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
         border_draw = ImageDraw.Draw(border_layer)
         border_draw.rounded_rectangle(
             [(0, 0), (inner_w - 1, inner_h - 1)],
             radius=corner_radius,
-            outline=(0, 0, 0, 255),
+            outline=border_color,
             width=border_width
         )
         inner_rounded = Image.alpha_composite(inner_rounded, border_layer)
 
-        # ── Step 4: Paste centered on custom background ──
-        card = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
         paste_x = (self.w - inner_w) // 2
         paste_y = (self.h - inner_h) // 2
         card.paste(inner_rounded, (paste_x, paste_y), inner_rounded)
@@ -542,23 +559,82 @@ class DeckCreator:
         else:
             bottom_scene = top_scene.rotate(180)
 
-        # Create canvas with background
+        # ── Build inner card on transparent background ──
+        inner = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+
+        # Load background early to compute border color
         if background_path:
-            canvas = Image.open(background_path).convert("RGBA").resize(
+            bg_for_color = Image.open(background_path).convert("RGB").resize(
                 (self.w, self.h), Image.LANCZOS)
         else:
-            canvas = Image.new("RGBA", (self.w, self.h), (255, 255, 255, 255))
+            bg_for_color = Image.new("RGB", (self.w, self.h), (255, 255, 255))
+        import numpy as np
+        bg_arr = np.array(bg_for_color)
+        avg_r, avg_g, avg_b = int(bg_arr[:,:,0].mean()), int(bg_arr[:,:,1].mean()), int(bg_arr[:,:,2].mean())
+        scene_border_color = (255 - avg_r, 255 - avg_g, 255 - avg_b, 255)
 
         # Place scenes — they meet at the center
-        canvas.paste(top_scene, (0, number_zone_h), top_scene)
-        canvas.paste(bottom_scene, (0, number_zone_h + scene_h), bottom_scene)
+        inner.paste(top_scene, (0, number_zone_h), top_scene)
+        inner.paste(bottom_scene, (0, number_zone_h + scene_h), bottom_scene)
+
+        # Draw straight borders around top and bottom scene images
+        scene_draw = ImageDraw.Draw(inner)
+        scene_border_w = max(1, int(self.w * 0.004))
+        # Top scene border
+        scene_draw.rectangle(
+            [(0, number_zone_h), (self.w - 1, number_zone_h + scene_h - 1)],
+            outline=scene_border_color, width=scene_border_w)
+        # Bottom scene border
+        scene_draw.rectangle(
+            [(0, number_zone_h + scene_h), (self.w - 1, number_zone_h + 2 * scene_h - 1)],
+            outline=scene_border_color, width=scene_border_w)
 
         # Add number text in the top and bottom zones
-        canvas = self._add_trump_number_grimaud(canvas, number)
+        inner = self._add_trump_number_grimaud(inner, number)
 
-        canvas.save(output_path)
+        # ── Downscale to 97.5% ──
+        inner_w = int(self.w * 0.975)
+        inner_h = int(self.h * 0.975)
+        inner_scaled = inner.resize((inner_w, inner_h), Image.LANCZOS)
+
+        # ── Add rounded border ──
+        corner_radius = int(self.w * 0.06)
+        border_width = max(1, int(self.w * 0.005))
+
+        # Rounded rectangle mask
+        mask = Image.new("L", (inner_w, inner_h), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle(
+            [(0, 0), (inner_w - 1, inner_h - 1)],
+            radius=corner_radius,
+            fill=255
+        )
+        inner_rounded = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+        inner_rounded.paste(inner_scaled, (0, 0), mask)
+
+        # ── Paste on background ──
+        card = bg_for_color.convert("RGBA")
+
+        # Border color already computed above
+        trump_border_color = scene_border_color
+
+        border_layer = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
+        border_draw = ImageDraw.Draw(border_layer)
+        border_draw.rounded_rectangle(
+            [(0, 0), (inner_w - 1, inner_h - 1)],
+            radius=corner_radius,
+            outline=trump_border_color,
+            width=border_width
+        )
+        inner_rounded = Image.alpha_composite(inner_rounded, border_layer)
+
+        paste_x = (self.w - inner_w) // 2
+        paste_y = (self.h - inner_h) // 2
+        card.paste(inner_rounded, (paste_x, paste_y), inner_rounded)
+
+        card.save(output_path)
         print(f"✅ Trump {number}: {output_path}")
-        return canvas
+        return card
 
     # ─────────────────────────────────────────────
     # STEP 5: Excuse (joker) assembly
@@ -674,7 +750,7 @@ class DeckCreator:
         inner_scaled = inner_cropped.resize((inner_w, inner_h), Image.LANCZOS)
 
         # ── Step 3: Add thin black border with rounded corners ──
-        corner_radius = int(self.w * 0.04)
+        corner_radius = int(self.w * 0.06)
         border_width = max(1, int(self.w * 0.005))
         
         mask = Image.new("L", (inner_w, inner_h), 0)
@@ -688,12 +764,18 @@ class DeckCreator:
         inner_rounded = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
         inner_rounded.paste(inner_scaled, (0, 0), mask)
         
+        # Compute border color as inverse of average background color
+        import numpy as np
+        bg_arr = np.array(bg_img.convert("RGB"))
+        avg_r, avg_g, avg_b = int(bg_arr[:,:,0].mean()), int(bg_arr[:,:,1].mean()), int(bg_arr[:,:,2].mean())
+        excuse_border_color = (255 - avg_r, 255 - avg_g, 255 - avg_b, 255)
+        
         border_layer = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
         border_draw = ImageDraw.Draw(border_layer)
         border_draw.rounded_rectangle(
             [(0, 0), (inner_w - 1, inner_h - 1)],
             radius=corner_radius,
-            outline=(0, 0, 0, 255),
+            outline=excuse_border_color,
             width=border_width
         )
         inner_rounded = Image.alpha_composite(inner_rounded, border_layer)
@@ -1131,6 +1213,40 @@ class DeckCreator:
         right_box_center_x = (right_box_left + w_ss - pad_x) // 2
         _draw_spaced_number(draw, right_box_center_x - total_tw // 2, ty)
 
+        # ── Ornament in center box ──
+        ornament_path = os.path.join(os.path.dirname(__file__),
+                                     '..', '..', 'images', 'assets', 'trump_ornament_src.jpg')
+        orn_tinted = None  # will hold the masked ornament for reuse in bottom
+        if os.path.exists(ornament_path):
+            orn = Image.open(ornament_path).convert("RGBA")
+
+            # Scale to fill the center box exactly
+            box_w = center_right - center_left
+            box_h = rect_bot - rect_top
+            if box_w > 0 and box_h > 0:
+                orn_scaled = orn.resize((box_w, box_h), Image.LANCZOS)
+
+                # Create arc-shaped mask matching the center box borders
+                mask = Image.new("L", (box_w, box_h), 0)
+                mask_draw = ImageDraw.Draw(mask)
+
+                # Build polygon points for the center box shape
+                # Left edge: arc bulging right
+                left_arc = _arc_points(0, 0, box_h, arc_bulge)
+                # Right edge: arc bulging left
+                right_arc = _arc_points(box_w, 0, box_h, -arc_bulge)
+
+                # Polygon: left arc top-to-bottom, then right arc bottom-to-top
+                poly = left_arc + list(reversed(right_arc))
+                mask_draw.polygon(poly, fill=255)
+
+                # Apply mask to ornament
+                orn_scaled.putalpha(mask)
+                orn_tinted = orn_scaled
+
+                # Paste onto overlay
+                overlay.paste(orn_tinted, (center_left, rect_top), orn_tinted)
+
         # Bottom boxes + numbers (rotated 180° for symmetry)
         temp = Image.new("RGBA", (w_ss, h_ss), (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
@@ -1142,6 +1258,9 @@ class DeckCreator:
                           round_tr=True, arc_left=-arc_bulge)
         _draw_spaced_number(temp_draw, left_box_center_x - total_tw // 2, ty)
         _draw_spaced_number(temp_draw, right_box_center_x - total_tw // 2, ty)
+        # Ornament in bottom center box too
+        if orn_tinted is not None:
+            temp.paste(orn_tinted, (center_left, rect_top), orn_tinted)
         temp = temp.rotate(180)
         overlay = Image.alpha_composite(overlay, temp)
 

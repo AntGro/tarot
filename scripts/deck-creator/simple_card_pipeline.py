@@ -15,7 +15,7 @@ Usage:
         symbol_path="path/to/heart.png",
         background_path="path/to/bg.png",   # or None for white
         output_path="seven_of_hearts.png",
-        card_w=400, card_h=738,
+        card_w=960, card_h=1771,
         font_path="fonts/Newston Regular.ttf",
     )
 """
@@ -311,8 +311,8 @@ def render_simple_card(
     symbol_path: str,
     output_path: str,
     background_path: str | None = None,
-    card_w: int = 400,
-    card_h: int = 738,
+    card_w: int = 960,
+    card_h: int = 1771,
     font_path: str = DEFAULT_FONT,
     params: dict | None = None,
 ):
