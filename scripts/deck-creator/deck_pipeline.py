@@ -44,6 +44,10 @@ ASSET ORIENTATION (for imagine --orientation):
 import argparse
 import os
 from PIL import Image, ImageDraw, ImageFont
+from card_utils import (dominant_color, load_font, DEFAULT_FONT, FALLBACK_FONT,
+                        FONT_SIZE_PCT, corner_font_size, corner_small_sym_size,
+                        corner_sym_offset, MAIN_SYM_PCT, TOP_ROW_Y_PCT,
+                        COL_INSET_PCT, CORNER_X_PCT, CORNER_Y_PCT, CROP_PAD_PX_REF)
 
 try:
     from rembg import remove as remove_bg
@@ -77,11 +81,6 @@ HIGH_RANKS = {
 TRUMP_COUNT = 21
 
 
-FONT_DIR = os.path.join(os.path.dirname(__file__), "fonts")
-DEFAULT_FONT = os.path.join(FONT_DIR, "EBGaramond.ttf")
-FALLBACK_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
-
-
 class DeckCreator:
     def __init__(self, deck_name, card_width=DEFAULT_WIDTH, card_height=DEFAULT_HEIGHT,
                  font_path=None):
@@ -92,17 +91,14 @@ class DeckCreator:
             os.path.dirname(__file__), "..", "..", "images", "decks", deck_name
         )
         os.makedirs(self.deck_dir, exist_ok=True)
-        # Font selection: custom > EB Garamond > DejaVu Serif > default
+        # Font selection: custom > Newston > DejaVu Serif > default
         self.font_path = font_path or DEFAULT_FONT
         if not os.path.exists(self.font_path):
             self.font_path = FALLBACK_FONT
 
     def _load_font(self, size):
         """Load the deck font at the given size."""
-        try:
-            return ImageFont.truetype(self.font_path, size)
-        except (OSError, IOError):
-            return ImageFont.load_default()
+        return load_font(self.font_path, size)
 
     # ─────────────────────────────────────────────
     # UTILITY: Remove background from AI-generated images
@@ -204,7 +200,7 @@ class DeckCreator:
             card.paste(s, (x, y), s)
 
         # Layer 3: Corner value + symbol
-        corner_size = max(16, int(self.w * 0.07))
+        corner_size = corner_small_sym_size(self.w)
         corner_sym = symbol.resize((corner_size, corner_size), Image.LANCZOS)
         card = self._add_corners(card, str(value), corner_sym, suit)
 
@@ -432,8 +428,8 @@ class DeckCreator:
         else:
             inner = self._add_corners_text(inner, letter, suit)
 
-        # ── Step 2: Crop 2% from left and right, then downscale to 97.5% ──
-        crop_x = int(self.w * 0.02)
+        # ── Step 2: Crop 1% from left and right, then downscale to 97.5% ──
+        crop_x = int(self.w * 0.01)
         inner_cropped = inner.crop((crop_x, 0, self.w - crop_x, self.h))
         cropped_w, cropped_h = inner_cropped.size
         inner_w = int(cropped_w * 0.975)
@@ -565,7 +561,7 @@ class DeckCreator:
 
         Pipeline:
         1. Build inner card (transparent bg + figure + corner stars)
-        2. Crop 2% from left/right, downscale to 97.5%
+        2. Crop 1% from left/right, downscale to 97.5%
         3. Add thin black border with rounded corners
         4. Paste centered on custom background
         """
@@ -642,8 +638,8 @@ class DeckCreator:
         # We'll add stars after compositing onto background, so detect color from bg
         bg_img = Image.open(background_path).convert("RGBA").resize((self.w, self.h), Image.LANCZOS)
 
-        # ── Step 2: Crop 2% from left/right, downscale to 97.5% ──
-        crop_x = int(self.w * 0.02)
+        # ── Step 2: Crop 1% from left/right, downscale to 97.5% ──
+        crop_x = int(self.w * 0.01)
         inner_cropped = inner.crop((crop_x, 0, self.w - crop_x, self.h))
         cropped_w, cropped_h = inner_cropped.size
         inner_w = int(cropped_w * 0.975)
@@ -730,10 +726,9 @@ class DeckCreator:
     def _add_corners(self, img, value_text, symbol_img, suit):
         """Add value text and suit symbol to top-left and bottom-right corners."""
         draw = ImageDraw.Draw(img)
-        color = SUIT_COLORS[suit]
-        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+        font_color = dominant_color(symbol_img)
 
-        font_size = max(16, int(self.w * 0.10))
+        font_size = corner_font_size(self.w)
         font = self._load_font(font_size)
         stroke_w = max(1, int(self.w * 0.003))
 
@@ -749,7 +744,7 @@ class DeckCreator:
         text_x = center_x - tw // 2
         sym_x = margin
 
-        sym_offset = int(font_size * 1.15)
+        sym_offset = corner_sym_offset(font_size)
         # Top-left: value centered over symbol
         draw.text((text_x, margin), value_text, fill=font_color, font=font,
                   stroke_width=stroke_w, stroke_fill=font_color)
@@ -769,45 +764,58 @@ class DeckCreator:
 
     def _add_corners_face(self, img, letter, symbol_img, suit):
         """Add face card corner: letter + suit symbol side by side.
-        Symbol is 110% of font size, slightly cropped, placed next to the letter.
-        Letter is positioned a bit lower than simple card corners."""
+        Symbol is 250% of font size, slightly cropped, placed next to the letter.
+        Font and size match simple_card_pipeline (Newston, 20%)."""
         draw = ImageDraw.Draw(img)
-        color = SUIT_COLORS[suit]
-        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+        font_color = dominant_color(symbol_img)
 
-        font_size = max(14, int(self.w * 0.09))
+        font_size = corner_font_size(self.w)
         font = self._load_font(font_size)
         stroke_w = max(1, int(self.w * 0.003))
 
-        margin = max(6, int(self.w * 0.03))
-        top_margin = int(margin * 1.8)  # a bit lower
+        margin = max(6, int(self.w * CORNER_X_PCT))
+        top_margin = round(self.w * CORNER_Y_PCT)
 
-        # Symbol: 250% of font size, crop 10% from edges
-        sym_size = int(font_size * 2.5)
+        # Big symbol: same size and position as simple card top-left symbol
+        sym_size = round(self.w * MAIN_SYM_PCT)
         sym = symbol_img.resize((sym_size, sym_size), Image.LANCZOS)
-        sym_cropped = sym
 
         # Measure letter dimensions
         bbox = draw.textbbox((0, 0), letter, font=font, stroke_width=stroke_w)
         tw = bbox[2] - bbox[0]
-        t_top = bbox[1]  # actual top of rendered glyph (can be negative)
 
-        # Letter then symbol side by side
-        # Align symbol top with the actual top of the rendered letter
-        gap = -tw // 2  # symbol starts at horizontal middle of the letter
-        sym_y = top_margin + t_top
+        # Symbol position: same as simple card col_inset (left edge)
+        col_inset = round(self.w * COL_INSET_PCT)
+        # Vertical center at top_row_y_pct of card height
+        top_row_center = round(self.h * TOP_ROW_Y_PCT)
+        sym_y = top_row_center - sym_size // 2
 
-        # Crop left edge of symbol so it doesn't cover the letter
-        overlap = tw // 2
-        sym_cropped = sym_cropped.crop((overlap, 0, sym_cropped.width, sym_cropped.height))
+        # Crop: if symbol overlaps with corner zone, crop left side
+        small_sym_sz = corner_small_sym_size(self.w)
+        crop_pad = round(self.w * CROP_PAD_PX_REF / 200)
+        num_tw = tw  # letter width = "number text width" equivalent
+        cornerZoneW = margin + max(num_tw, num_tw // 2 + small_sym_sz // 2) + crop_pad
+        cornerBottom = top_margin + corner_sym_offset(font_size) + small_sym_sz
 
-        # Paste position: symbol left edge = letter right edge (margin + tw)
-        sym_paste_x = margin + tw
+        sym_x = col_inset
+        sym_draw_x = sym_x
+        sym_cropped = sym
 
-        # Small corner symbol below letter (same as simple cards)
-        corner_size = max(16, int(self.w * 0.07))
+        # Check if symbol overlaps corner zone
+        sym_bottom = sym_y + sym_size
+        overlapTop = (sym_y < cornerBottom and sym_bottom > top_margin)
+        if overlapTop and sym_x < cornerZoneW:
+            ov = cornerZoneW - sym_x
+            if ov < sym_size:
+                sym_cropped = sym.crop((ov, 0, sym_size, sym_size))
+                sym_draw_x = cornerZoneW
+            else:
+                sym_cropped = None
+
+        # Small corner symbol below letter (same size as simple cards)
+        corner_size = corner_small_sym_size(self.w)
         corner_sym = symbol_img.resize((corner_size, corner_size), Image.LANCZOS)
-        sym_offset = int(font_size * 1.15)
+        sym_offset = corner_sym_offset(font_size)
         # Center corner symbol under the letter
         corner_x = margin + tw // 2 - corner_size // 2
 
@@ -815,15 +823,31 @@ class DeckCreator:
         tr_letter_x = self.w - margin - tw
         tr_corner_x = self.w - margin - tw // 2 - corner_size // 2
 
+        # Top-right big symbol: mirror (crop right side instead of left)
+        tr_sym_x = self.w - col_inset - sym_size  # right column position
+        tr_sym_draw_x = tr_sym_x
+        tr_sym_cropped = sym
+        cornerZoneR = self.w - cornerZoneW
+        if overlapTop and (tr_sym_x + sym_size) > cornerZoneR:
+            ov = (tr_sym_x + sym_size) - cornerZoneR
+            if ov < sym_size:
+                tr_sym_cropped = sym.crop((0, 0, sym_size - ov, sym_size))
+                # tr_sym_draw_x stays the same
+            else:
+                tr_sym_cropped = None
+
         # Top-left
         draw.text((margin, top_margin), letter, fill=font_color, font=font,
                   stroke_width=stroke_w, stroke_fill=font_color)
-        img.paste(sym_cropped, (sym_paste_x, sym_y), sym_cropped)
+        if sym_cropped is not None:
+            img.paste(sym_cropped, (sym_draw_x, sym_y), sym_cropped)
         img.paste(corner_sym, (corner_x, top_margin + sym_offset), corner_sym)
 
         # Top-right
         draw.text((tr_letter_x, top_margin), letter, fill=font_color, font=font,
                   stroke_width=stroke_w, stroke_fill=font_color)
+        if tr_sym_cropped is not None:
+            img.paste(tr_sym_cropped, (tr_sym_draw_x, sym_y), tr_sym_cropped)
         img.paste(corner_sym, (tr_corner_x, top_margin + sym_offset), corner_sym)
 
         # Bottom-left + bottom-right via rotation of top-right + top-left
@@ -832,11 +856,14 @@ class DeckCreator:
         # Mirror of top-left → bottom-right
         temp_draw.text((margin, top_margin), letter, fill=font_color, font=font,
                        stroke_width=stroke_w, stroke_fill=font_color)
-        temp.paste(sym_cropped, (sym_paste_x, sym_y), sym_cropped)
+        if sym_cropped is not None:
+            temp.paste(sym_cropped, (sym_draw_x, sym_y), sym_cropped)
         temp.paste(corner_sym, (corner_x, top_margin + sym_offset), corner_sym)
         # Mirror of top-right → bottom-left
         temp_draw.text((tr_letter_x, top_margin), letter, fill=font_color, font=font,
                        stroke_width=stroke_w, stroke_fill=font_color)
+        if tr_sym_cropped is not None:
+            temp.paste(tr_sym_cropped, (tr_sym_draw_x, sym_y), tr_sym_cropped)
         temp.paste(corner_sym, (tr_corner_x, top_margin + sym_offset), corner_sym)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
@@ -846,12 +873,13 @@ class DeckCreator:
     def _add_corners_text(self, img, letter, suit):
         """Add letter (V/C/D/R) and suit symbol text to corners."""
         draw = ImageDraw.Draw(img)
+        # Text-only fallback — no symbol image available, use suit color map
         color = SUIT_COLORS[suit]
-        font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
+        font_color = (220, 20, 60, 255) if color == "red" else (50, 50, 50, 255)
         symbol = SUIT_SYMBOLS[suit]
 
-        font_size = max(14, int(self.w * 0.09))
-        sym_font_size = max(12, int(self.w * 0.07))
+        font_size = corner_font_size(self.w)
+        sym_font_size = max(12, int(self.w * 0.14))
         font = self._load_font(font_size)
         sym_font = self._load_font(sym_font_size)
         stroke_w = max(1, int(self.w * 0.003))

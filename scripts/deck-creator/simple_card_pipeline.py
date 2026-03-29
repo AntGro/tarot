@@ -56,10 +56,8 @@ def _px(pct: float, base: int) -> int:
 
 
 def _load_font(path: str, size: int) -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype(path, size)
-    except (OSError, IOError):
-        return ImageFont.load_default()
+    from card_utils import load_font
+    return load_font(path, size)
 
 
 def _measure_text_spaced(draw, text, font, stroke_w, spacing):
@@ -187,7 +185,8 @@ def _draw_corners(card: Image.Image, value: int, suit: str,
                   W: int, H: int, p: dict):
     """Draw number + small suit symbol in all 4 corners."""
     draw = ImageDraw.Draw(card)
-    font_color = (220, 20, 60, 255) if SUIT_COLORS[suit] == "red" else (0, 0, 0, 255)
+    from card_utils import dominant_color
+    font_color = dominant_color(symbol_img)
 
     margin  = _px(p["corner_x_pct"], W)
     marginY = _px(p["corner_y_pct"], W)
