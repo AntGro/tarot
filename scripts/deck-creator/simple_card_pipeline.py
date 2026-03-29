@@ -323,22 +323,26 @@ def render_simple_card(
     p = {**PARAMS, **(params or {})}
     W, H = card_w, card_h
 
-    # Layer 0: background (or white)
-    if background_path:
-        card = Image.open(background_path).convert("RGBA").resize((W, H), Image.LANCZOS)
-    else:
-        card = Image.new("RGBA", (W, H), (255, 255, 255, 255))
-
     # Load symbol
     symbol = Image.open(symbol_path).convert("RGBA")
 
+    # Build inner card on transparent background
+    inner = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+
     # Layer 1: suit symbols at layout positions
     layout = _get_layout(value, W, H, p)
-    card = _draw_symbols(card, layout["positions"], suit, symbol,
+    inner = _draw_symbols(inner, layout["positions"], suit, symbol,
                          font_path, W, H, p)
 
     # Layer 2: corner numbers + small symbols
-    card = _draw_corners(card, value, suit, symbol, font_path, W, H, p)
+    inner = _draw_corners(inner, value, suit, symbol, font_path, W, H, p)
+
+    if background_path:
+        card = Image.open(background_path).convert("RGBA").resize((W, H), Image.LANCZOS)
+        card = Image.alpha_composite(card, inner)
+    else:
+        card = Image.new("RGBA", (W, H), (255, 255, 255, 255))
+        card = Image.alpha_composite(card, inner)
 
     card.save(output_path)
     print(f"✅ {value} of {suit}: {output_path}")

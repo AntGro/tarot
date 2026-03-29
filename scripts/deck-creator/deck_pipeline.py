@@ -590,7 +590,7 @@ class DeckCreator:
             outline=scene_border_color, width=scene_border_w)
 
         # Add number text in the top and bottom zones
-        inner = self._add_trump_number_grimaud(inner, number)
+        inner = self._add_trump_number_grimaud(inner, number, background_path=background_path)
 
         # ── Downscale to 97.5% ──
         inner_w = int(self.w * 0.975)
@@ -661,6 +661,14 @@ class DeckCreator:
         # Joker figure (asset IS the top half)
         raw_joker = Image.open(joker_top_half_path).convert("RGBA")
         
+        # Step 0: Auto-detect if background removal is needed
+        alpha = raw_joker.split()[3]
+        transparent_pct = sum(1 for p in alpha.getdata() if p < 10) / (raw_joker.width * raw_joker.height)
+        if transparent_pct < 0.05:
+            print(f"🔍 Excuse figure is {transparent_pct:.1%} transparent — running rembg...")
+            raw_joker = self.remove_background(joker_top_half_path)
+            raw_joker = raw_joker.convert("RGBA")
+
         # Step A: Crop to content bounding box
         content_bbox = raw_joker.getbbox()
         if content_bbox:
@@ -1028,7 +1036,7 @@ class DeckCreator:
 
         return img
 
-    def _add_trump_number_grimaud(self, img, number):
+    def _add_trump_number_grimaud(self, img, number, background_path=None):
         """Add trump number in all 4 corners of the number zones,
         with a thin border around the top pair and bottom pair.
         Renders at 4× resolution for anti-aliased curves, then downscales."""
@@ -1044,13 +1052,17 @@ class DeckCreator:
         stroke_w = max(1, int(w_ss * 0.003))
         margin = max(4, int(w_ss * 0.10))
 
-        # Compute digit color as inverse of average background in number zone
-        # (sample from original image, not supersampled)
-        scene_h_orig = int(self.w / 1.5)
-        nz_h_orig = (self.h - 2 * scene_h_orig) // 2
-        zone_crop = img.crop((0, 0, self.w, nz_h_orig)).convert("RGB")
+        # Compute digit color as inverse of average background color
         import numpy as np
-        pixels = np.array(zone_crop)
+        if background_path:
+            bg_img = Image.open(background_path).convert("RGB")
+            pixels = np.array(bg_img)
+        else:
+            # Fallback: sample from number zone of inner card
+            scene_h_orig = int(self.w / 1.5)
+            nz_h_orig = (self.h - 2 * scene_h_orig) // 2
+            zone_crop = img.crop((0, 0, self.w, nz_h_orig)).convert("RGB")
+            pixels = np.array(zone_crop)
         avg_r, avg_g, avg_b = int(pixels[:,:,0].mean()), int(pixels[:,:,1].mean()), int(pixels[:,:,2].mean())
         digit_color = (255 - avg_r, 255 - avg_g, 255 - avg_b, 255)
         border_color = digit_color  # same color, full opacity
