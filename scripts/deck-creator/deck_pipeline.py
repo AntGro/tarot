@@ -368,25 +368,39 @@ class DeckCreator:
         # Step B: Crop bottom — scan upward until finding a row where:
         #   1. >50% of pixels are non-blank, AND
         #   2. >40% of pixels are contiguously non-blank
+        #   3. Exactly 1 connected component (try first, fallback without)
         alpha = raw_figure.split()[3]
         fw, fh = raw_figure.size
-        bottom_row = fh - 1
-        for y in range(fh - 1, -1, -1):
-            row_pixels = list(alpha.crop((0, y, fw, y + 1)).getdata())
-            non_blank = sum(1 for p in row_pixels if p > 10) / fw
-            # Check contiguous run
-            max_run = 0
-            current_run = 0
-            for p in row_pixels:
-                if p > 10:
-                    current_run += 1
-                    max_run = max(max_run, current_run)
-                else:
-                    current_run = 0
-            contiguous = max_run / fw
-            if non_blank >= 0.50 and contiguous >= 0.40:
-                bottom_row = y
-                break
+
+        def _scan_bottom(require_single_component):
+            for y in range(fh - 1, -1, -1):
+                row_pixels = list(alpha.crop((0, y, fw, y + 1)).getdata())
+                non_blank = sum(1 for p in row_pixels if p > 10) / fw
+                # Check contiguous run and connected components
+                max_run = 0
+                current_run = 0
+                runs = 0
+                in_run = False
+                for p in row_pixels:
+                    if p > 10:
+                        current_run += 1
+                        max_run = max(max_run, current_run)
+                        if not in_run:
+                            runs += 1
+                            in_run = True
+                    else:
+                        current_run = 0
+                        in_run = False
+                contiguous = max_run / fw
+                if non_blank >= 0.50 and contiguous >= 0.40:
+                    if not require_single_component or runs == 1:
+                        return y
+            return fh - 1
+
+        # Try with single component first, fallback without
+        bottom_row = _scan_bottom(require_single_component=True)
+        if bottom_row == fh - 1:
+            bottom_row = _scan_bottom(require_single_component=False)
         raw_figure = raw_figure.crop((0, 0, fw, bottom_row + 1))
         
         fw, fh = raw_figure.size
@@ -587,24 +601,37 @@ class DeckCreator:
         # Step B: Crop bottom — scan upward until finding a row where:
         #   1. >50% of pixels are non-blank, AND
         #   2. >40% of pixels are contiguously non-blank
+        #   3. Exactly 1 connected component (try first, fallback without)
         alpha = raw_joker.split()[3]
         jw, jh = raw_joker.size
-        bottom_row = jh - 1
-        for y in range(jh - 1, -1, -1):
-            row_pixels = list(alpha.crop((0, y, jw, y + 1)).getdata())
-            non_blank = sum(1 for p in row_pixels if p > 10) / jw
-            max_run = 0
-            current_run = 0
-            for p in row_pixels:
-                if p > 10:
-                    current_run += 1
-                    max_run = max(max_run, current_run)
-                else:
-                    current_run = 0
-            contiguous = max_run / jw
-            if non_blank >= 0.50 and contiguous >= 0.40:
-                bottom_row = y
-                break
+
+        def _scan_bottom(require_single_component):
+            for y in range(jh - 1, -1, -1):
+                row_pixels = list(alpha.crop((0, y, jw, y + 1)).getdata())
+                non_blank = sum(1 for p in row_pixels if p > 10) / jw
+                max_run = 0
+                current_run = 0
+                runs = 0
+                in_run = False
+                for p in row_pixels:
+                    if p > 10:
+                        current_run += 1
+                        max_run = max(max_run, current_run)
+                        if not in_run:
+                            runs += 1
+                            in_run = True
+                    else:
+                        current_run = 0
+                        in_run = False
+                contiguous = max_run / jw
+                if non_blank >= 0.50 and contiguous >= 0.40:
+                    if not require_single_component or runs == 1:
+                        return y
+            return jh - 1
+
+        bottom_row = _scan_bottom(require_single_component=True)
+        if bottom_row == jh - 1:
+            bottom_row = _scan_bottom(require_single_component=False)
         raw_joker = raw_joker.crop((0, 0, jw, bottom_row + 1))
         
         jw, jh = raw_joker.size
