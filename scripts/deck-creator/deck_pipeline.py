@@ -78,8 +78,8 @@ TRUMP_COUNT = 21
 
 
 FONT_DIR = os.path.join(os.path.dirname(__file__), "fonts")
-DEFAULT_FONT = os.path.join(FONT_DIR, "Newston Regular.ttf")
-FALLBACK_FONT = os.path.join(FONT_DIR, "EBGaramond.ttf")
+DEFAULT_FONT = os.path.join(FONT_DIR, "EBGaramond.ttf")
+FALLBACK_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 
 
 class DeckCreator:
@@ -193,7 +193,7 @@ class DeckCreator:
 
         # Layer 2: Suit symbols at standard positions
         symbol = Image.open(symbol_path).convert("RGBA")
-        center_size = max(16, int(self.w * 0.25))
+        center_size = max(16, int(self.w * 0.10 * 2.5))
         center_sym = symbol.resize((center_size, center_size), Image.LANCZOS)
         center_sym_down = center_sym.rotate(180)
 
@@ -204,7 +204,9 @@ class DeckCreator:
             card.paste(s, (x, y), s)
 
         # Layer 3: Corner value + symbol
-        card = self._add_corners(card, str(value), symbol, suit)
+        corner_size = max(16, int(self.w * 0.07))
+        corner_sym = symbol.resize((corner_size, corner_size), Image.LANCZOS)
+        card = self._add_corners(card, str(value), corner_sym, suit)
 
         card.save(output_path)
         print(f"✅ {value} of {suit}: {output_path}")
@@ -225,18 +227,24 @@ class DeckCreator:
         All positions account for corner labels (~12% top/bottom margin).
         """
         cx = self.w // 2 - sym_size // 2
-        # Two columns at 5.5% inset from card edge
-        col_inset = int(self.w * 0.055)
+        # Two columns — Grimaud uses ~27% inset from card edge
+        col_inset = int(self.w * 0.22)
         lx = col_inset - sym_size // 2
         rx = self.w - col_inset - sym_size // 2
 
-        # Top row Y: center of symbol at 10% of card height
-        r1_center = int(self.h * 0.10)
-        r1 = r1_center - sym_size // 2
-        r7 = self.h - r1 - sym_size  # mirror
+        # Vertical rows — measured from Grimaud reference cards
+        # Row positions as fraction of card height (from top edge)
+        # Corner area ends at ~12%, playable area ~12%-88%
+        r1 = int(self.h * 0.10)   # Row 1: top
+        r2 = int(self.h * 0.23)   # Row 2: upper-mid
+        r3 = int(self.h * 0.36)   # Row 3: upper-center
         mid = self.h // 2 - sym_size // 2  # Exact middle
+        r5 = self.h - int(self.h * 0.36) - sym_size  # Row 5: lower-center (mirror r3)
+        r6 = self.h - int(self.h * 0.23) - sym_size  # Row 6: lower-mid (mirror r2)
+        r7 = self.h - int(self.h * 0.10) - sym_size  # Row 7: bottom (mirror r1)
 
-        # Between rows for 7/8: midpoint between r1 and mid
+        # Between rows for 7/8/10 extra symbols
+        # r1_2 for 7/8: midpoint between r1 and mid
         r1_2_mid = (r1 + mid) // 2
         r6_7_mid = self.h - (r1 + mid) // 2 - sym_size
 
@@ -720,105 +728,61 @@ class DeckCreator:
     # ─────────────────────────────────────────────
 
     def _add_corners(self, img, value_text, symbol_img, suit):
-        """Add value text and suit symbol to all 4 corners.
-        
-        Parameters from tuner:
-        - corner_x: 3% of card width (horizontal margin)
-        - corner_y: 5.5% of card width (vertical margin)
-        - font_size: 20% of card width
-        - small_sym: 9.5% of card width
-        - sym_y_offset: 81% of font_size
-        - letter_spacing: 0.5px (scaled to card width)
-        - crop_pad: 5px (scaled to card width)
-        """
+        """Add value text and suit symbol to top-left and bottom-right corners."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
 
-        font_size = max(16, int(self.w * 0.20))
+        font_size = max(16, int(self.w * 0.10))
         font = self._load_font(font_size)
         stroke_w = max(1, int(self.w * 0.003))
-        letter_spacing = max(0, int(self.w * 0.5 / 400))  # 0.5px at 400w
 
         margin = max(6, int(self.w * 0.03))
-        margin_y = max(6, int(self.w * 0.055))
+        sym_w = symbol_img.width
 
-        # Resize corner symbol to 9.5% of card width
-        corner_size = max(16, int(self.w * 0.095))
-        corner_sym = symbol_img.resize((corner_size, corner_size), Image.LANCZOS)
+        # Measure text width for centering
+        bbox = draw.textbbox((0, 0), value_text, font=font, stroke_width=stroke_w)
+        tw = bbox[2] - bbox[0]
 
-        sym_offset = int(font_size * 0.81)
+        # Center axis = middle of the symbol
+        center_x = margin + sym_w // 2
+        text_x = center_x - tw // 2
+        sym_x = margin
 
-        # Measure text width with letter spacing
-        tw = self._measure_text_spaced(draw, value_text, font, stroke_w, letter_spacing)
+        sym_offset = int(font_size * 1.15)
+        # Top-left: value centered over symbol
+        draw.text((text_x, margin), value_text, fill=font_color, font=font,
+                  stroke_width=stroke_w, stroke_fill=font_color)
+        # Top-left: suit symbol below value
+        img.paste(symbol_img, (sym_x, margin + sym_offset), symbol_img)
 
-        # Center axis = middle of text
-        text_x = margin
-        sym_x = margin + tw // 2 - corner_size // 2
-
-        # Top-right positions
-        text_x_r = self.w - margin - tw
-        sym_x_r = self.w - margin - tw // 2 - corner_size // 2
-
-        # Top-left: value + symbol
-        self._draw_text_spaced(draw, (text_x, margin_y), value_text, font,
-                               font_color, stroke_w, letter_spacing)
-        img.paste(corner_sym, (sym_x, margin_y + sym_offset), corner_sym)
-
-        # Top-right: value + symbol
-        self._draw_text_spaced(draw, (text_x_r, margin_y), value_text, font,
-                               font_color, stroke_w, letter_spacing)
-        img.paste(corner_sym, (sym_x_r, margin_y + sym_offset), corner_sym)
-
-        # Bottom corners via 180° rotation of a temp layer
+        # Bottom-right: rotated
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        # Top-left on temp → becomes bottom-right when rotated
-        self._draw_text_spaced(temp_draw, (text_x, margin_y), value_text, font,
-                               font_color, stroke_w, letter_spacing)
-        temp.paste(corner_sym, (sym_x, margin_y + sym_offset), corner_sym)
-        # Top-right on temp → becomes bottom-left when rotated
-        self._draw_text_spaced(temp_draw, (text_x_r, margin_y), value_text, font,
-                               font_color, stroke_w, letter_spacing)
-        temp.paste(corner_sym, (sym_x_r, margin_y + sym_offset), corner_sym)
+        temp_draw.text((text_x, margin), value_text, fill=font_color, font=font,
+                       stroke_width=stroke_w, stroke_fill=font_color)
+        temp.paste(symbol_img, (sym_x, margin + sym_offset), symbol_img)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
         return img
 
-    def _draw_text_spaced(self, draw, pos, text, font, color, stroke_w, spacing):
-        """Draw text character by character with custom letter spacing."""
-        x, y = pos
-        for i, ch in enumerate(text):
-            draw.text((x, y), ch, fill=color, font=font,
-                      stroke_width=stroke_w, stroke_fill=color)
-            bbox = draw.textbbox((0, 0), ch, font=font, stroke_width=stroke_w)
-            x += (bbox[2] - bbox[0]) + (spacing if i < len(text) - 1 else 0)
-
-    def _measure_text_spaced(self, draw, text, font, stroke_w, spacing):
-        """Measure total text width with custom letter spacing."""
-        total = 0
-        for i, ch in enumerate(text):
-            bbox = draw.textbbox((0, 0), ch, font=font, stroke_width=stroke_w)
-            total += (bbox[2] - bbox[0]) + (spacing if i < len(text) - 1 else 0)
-        return total
-
     def _add_corners_face(self, img, letter, symbol_img, suit):
         """Add face card corner: letter + suit symbol side by side.
-        Symbol is 250% of font size, cropped, placed next to the letter.
-        Uses same margin/font params as simple cards."""
+        Symbol is 110% of font size, slightly cropped, placed next to the letter.
+        Letter is positioned a bit lower than simple card corners."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
 
-        font_size = max(14, int(self.w * 0.20))
+        font_size = max(14, int(self.w * 0.09))
         font = self._load_font(font_size)
         stroke_w = max(1, int(self.w * 0.003))
 
         margin = max(6, int(self.w * 0.03))
-        margin_y = max(6, int(self.w * 0.055))
+        top_margin = int(margin * 1.8)  # a bit lower
 
-        # Symbol: 250% of font size
+        # Symbol: 250% of font size, crop 10% from edges
         sym_size = int(font_size * 2.5)
         sym = symbol_img.resize((sym_size, sym_size), Image.LANCZOS)
         sym_cropped = sym
@@ -826,68 +790,73 @@ class DeckCreator:
         # Measure letter dimensions
         bbox = draw.textbbox((0, 0), letter, font=font, stroke_width=stroke_w)
         tw = bbox[2] - bbox[0]
-        t_top = bbox[1]
+        t_top = bbox[1]  # actual top of rendered glyph (can be negative)
 
-        # Symbol starts at horizontal middle of the letter
-        sym_y = margin_y + t_top
+        # Letter then symbol side by side
+        # Align symbol top with the actual top of the rendered letter
+        gap = -tw // 2  # symbol starts at horizontal middle of the letter
+        sym_y = top_margin + t_top
 
-        # Crop left edge of symbol
+        # Crop left edge of symbol so it doesn't cover the letter
         overlap = tw // 2
         sym_cropped = sym_cropped.crop((overlap, 0, sym_cropped.width, sym_cropped.height))
 
+        # Paste position: symbol left edge = letter right edge (margin + tw)
         sym_paste_x = margin + tw
 
-        # Small corner symbol below letter
-        corner_size = max(16, int(self.w * 0.095))
+        # Small corner symbol below letter (same as simple cards)
+        corner_size = max(16, int(self.w * 0.07))
         corner_sym = symbol_img.resize((corner_size, corner_size), Image.LANCZOS)
-        sym_offset = int(font_size * 0.81)
+        sym_offset = int(font_size * 1.15)
+        # Center corner symbol under the letter
         corner_x = margin + tw // 2 - corner_size // 2
 
-        # Top-right positions
+        # Top-right: letter + symbol (mirrored horizontally)
         tr_letter_x = self.w - margin - tw
         tr_corner_x = self.w - margin - tw // 2 - corner_size // 2
 
         # Top-left
-        draw.text((margin, margin_y), letter, fill=font_color, font=font,
+        draw.text((margin, top_margin), letter, fill=font_color, font=font,
                   stroke_width=stroke_w, stroke_fill=font_color)
         img.paste(sym_cropped, (sym_paste_x, sym_y), sym_cropped)
-        img.paste(corner_sym, (corner_x, margin_y + sym_offset), corner_sym)
+        img.paste(corner_sym, (corner_x, top_margin + sym_offset), corner_sym)
 
         # Top-right
-        draw.text((tr_letter_x, margin_y), letter, fill=font_color, font=font,
+        draw.text((tr_letter_x, top_margin), letter, fill=font_color, font=font,
                   stroke_width=stroke_w, stroke_fill=font_color)
-        img.paste(corner_sym, (tr_corner_x, margin_y + sym_offset), corner_sym)
+        img.paste(corner_sym, (tr_corner_x, top_margin + sym_offset), corner_sym)
 
-        # Bottom corners via rotation
+        # Bottom-left + bottom-right via rotation of top-right + top-left
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text((margin, margin_y), letter, fill=font_color, font=font,
+        # Mirror of top-left → bottom-right
+        temp_draw.text((margin, top_margin), letter, fill=font_color, font=font,
                        stroke_width=stroke_w, stroke_fill=font_color)
         temp.paste(sym_cropped, (sym_paste_x, sym_y), sym_cropped)
-        temp.paste(corner_sym, (corner_x, margin_y + sym_offset), corner_sym)
-        temp_draw.text((tr_letter_x, margin_y), letter, fill=font_color, font=font,
+        temp.paste(corner_sym, (corner_x, top_margin + sym_offset), corner_sym)
+        # Mirror of top-right → bottom-left
+        temp_draw.text((tr_letter_x, top_margin), letter, fill=font_color, font=font,
                        stroke_width=stroke_w, stroke_fill=font_color)
-        temp.paste(corner_sym, (tr_corner_x, margin_y + sym_offset), corner_sym)
+        temp.paste(corner_sym, (tr_corner_x, top_margin + sym_offset), corner_sym)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
 
         return img
 
     def _add_corners_text(self, img, letter, suit):
-        """Add letter (V/C/D/R) and suit symbol text to corners (fallback without symbol image)."""
+        """Add letter (V/C/D/R) and suit symbol text to corners."""
         draw = ImageDraw.Draw(img)
         color = SUIT_COLORS[suit]
         font_color = (200, 0, 0, 255) if color == "red" else (0, 0, 0, 255)
         symbol = SUIT_SYMBOLS[suit]
 
-        font_size = max(14, int(self.w * 0.20))
-        sym_font_size = max(12, int(self.w * 0.095))
+        font_size = max(14, int(self.w * 0.09))
+        sym_font_size = max(12, int(self.w * 0.07))
         font = self._load_font(font_size)
         sym_font = self._load_font(sym_font_size)
         stroke_w = max(1, int(self.w * 0.003))
 
         margin = max(6, int(self.w * 0.03))
-        margin_y = max(6, int(self.w * 0.055))
 
         # Measure widths for centering
         bbox_letter = draw.textbbox((0, 0), letter, font=font, stroke_width=stroke_w)
@@ -897,19 +866,19 @@ class DeckCreator:
         max_w = max(lw, sw)
         center_x = margin + max_w // 2
 
-        sym_offset = int(font_size * 0.81)
+        sym_offset = int(font_size * 1.15)
         # Top-left (centered)
-        draw.text((center_x - lw // 2, margin_y), letter, fill=font_color, font=font,
+        draw.text((center_x - lw // 2, margin), letter, fill=font_color, font=font,
                   stroke_width=stroke_w, stroke_fill=font_color)
-        draw.text((center_x - sw // 2, margin_y + sym_offset), symbol, fill=font_color, font=sym_font,
+        draw.text((center_x - sw // 2, margin + sym_offset), symbol, fill=font_color, font=sym_font,
                   stroke_width=stroke_w, stroke_fill=font_color)
 
         # Bottom-right (rotated)
         temp = Image.new("RGBA", img.size, (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        temp_draw.text((center_x - lw // 2, margin_y), letter, fill=font_color, font=font,
+        temp_draw.text((center_x - lw // 2, margin), letter, fill=font_color, font=font,
                        stroke_width=stroke_w, stroke_fill=font_color)
-        temp_draw.text((center_x - sw // 2, margin_y + sym_offset), symbol, fill=font_color, font=sym_font,
+        temp_draw.text((center_x - sw // 2, margin + sym_offset), symbol, fill=font_color, font=sym_font,
                        stroke_width=stroke_w, stroke_fill=font_color)
         temp = temp.rotate(180)
         img = Image.alpha_composite(img, temp)
