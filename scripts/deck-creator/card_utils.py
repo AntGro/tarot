@@ -86,22 +86,40 @@ def enforce_vertical_symmetry(img: Image.Image) -> Image.Image:
     """Enforce vertical (left-right) symmetry on a symbol image.
     
     Takes the left half of the image and mirrors it onto the right half.
-    Preserves transparency. The image should be centered and have a
-    transparent background.
+    Blends a few pixels around the center for a seamless join.
+    Preserves transparency.
     """
     img = img.convert("RGBA")
     w, h = img.size
     mid = w // 2
     
-    # Take the left half
-    left_half = img.crop((0, 0, mid, h))
+    # Take the left half (including center column)
+    left_half = img.crop((0, 0, mid + 1, h))
     
     # Mirror it
     right_half = left_half.transpose(Image.FLIP_LEFT_RIGHT)
     
-    # Compose: left half + mirrored right half
-    result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    result.paste(left_half, (0, 0))
-    result.paste(right_half, (w - mid, 0))
+    # Start with original image
+    result = img.copy()
     
-    return result
+    # Paste left half
+    result.paste(left_half, (0, 0))
+    
+    # Paste mirrored right half (overlaps at center by 1px)
+    result.paste(right_half, (mid, 0))
+    
+    # Blend a strip around the center (4px each side) for seamless join
+    blend_width = min(4, mid)
+    arr = np.array(result).astype(np.float64)
+    for dx in range(blend_width):
+        # Weight: 1.0 at edge, 0.0 at center
+        t = dx / blend_width
+        left_x = mid - 1 - dx
+        right_x = mid + dx
+        if left_x >= 0 and right_x < w:
+            blended = arr[:, left_x] * (1 - t * 0.5) + arr[:, right_x] * (t * 0.5)
+            blended_r = arr[:, right_x] * (1 - t * 0.5) + arr[:, left_x] * (t * 0.5)
+            arr[:, left_x] = blended
+            arr[:, right_x] = blended_r
+    
+    return Image.fromarray(arr.clip(0, 255).astype(np.uint8), "RGBA")
