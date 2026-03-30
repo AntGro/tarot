@@ -21,11 +21,16 @@
 
 8. **AI prompt rules for figures/excuse**:
    - Always include "plain solid color background" so `rembg` works cleanly.
+   - Always include "oil painting style, rich impasto brushstrokes" for consistent artistic look.
    - All figures (V/C/D/R) and excuse must be **half-length portraits**: "from the waist up, no legs visible, full head visible with space above, showing hands, centered".
    - **Knights** must also show the horse head: "knight mounted on horse, half-length portrait showing rider from waist up with hands visible and horse head and neck, no hooves".
    - Do **NOT** use "close-up" or "zoomed in" — it crops too tight.
    - Avoid textured/gradient/scenic backgrounds.
    - The pipeline includes **automatic leg detection** (`detect_legs`): warns if bottom 30% fill < 30%. If triggered, regenerate.
+
+9. **AI prompt rules for trump scenes**:
+   - Always include "oil painting style, rich impasto brushstrokes" for consistent artistic look.
+   - Use `--orientation landscape` for all scene images.
 
 9. **Suit symbol rules**:
    - Generated suit symbols must be **vertically symmetrical** (like standard ♥♦♣♠).

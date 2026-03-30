@@ -592,9 +592,15 @@ class DeckCreator:
         # Add number text in the top and bottom zones
         inner = self._add_trump_number_grimaud(inner, number, background_path=background_path)
 
+        # ── Crop z% from left and right ──
+        edge_extra_pct = 0.015  # same z parameter as number zone outer edge
+        side_crop = int(self.w * edge_extra_pct)
+        inner = inner.crop((side_crop, 0, self.w - side_crop, self.h))
+        cropped_w, cropped_h = inner.size
+
         # ── Downscale to 97.5% ──
-        inner_w = int(self.w * 0.975)
-        inner_h = int(self.h * 0.975)
+        inner_w = int(cropped_w * 0.94)
+        inner_h = int(cropped_h * 0.94)
         inner_scaled = inner.resize((inner_w, inner_h), Image.LANCZOS)
 
         # ── Add rounded border ──
@@ -1047,7 +1053,7 @@ class DeckCreator:
         overlay = Image.new("RGBA", (w_ss, h_ss), (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        font_size = max(18, int(h_ss * 0.11 / SS)) * SS
+        font_size = max(18, int(h_ss * 0.13 / SS)) * SS
         font = self._load_font(font_size)
         stroke_w = max(1, int(w_ss * 0.003))
         margin = max(4, int(w_ss * 0.10))
@@ -1099,9 +1105,11 @@ class DeckCreator:
                 cx += (bb[2] - bb[0]) + trump_spacing
 
         # ── Three separate bordered rectangles in the number zone ──
-        border_pad_pct = 0.03  # 3% from edges
-        gap_pct = 0.03         # 3% gap between adjacent borders
+        border_pad_pct = 0.025  # 2.5% from edges
+        gap_pct = 0.025         # 2.5% gap between adjacent borders
+        edge_extra_pct = 0.015   # extra padding from card edge to outer box edge
         pad_x = int(w_ss * border_pad_pct)
+        pad_x_outer = int(w_ss * (border_pad_pct + edge_extra_pct))  # outer edge padding
         pad_top = int(w_ss * border_pad_pct)
         pad_bottom = int(w_ss * border_pad_pct)
         gap = int(w_ss * gap_pct)
@@ -1208,21 +1216,21 @@ class DeckCreator:
 
         # Draw 3 top boxes
         # Left box: rounded top-left, arc right edge bulges right
-        _draw_box_outline(draw, pad_x, rect_top, left_box_right, rect_bot,
+        _draw_box_outline(draw, pad_x_outer, rect_top, left_box_right, rect_bot,
                           round_tl=True, arc_right=arc_bulge)
         # Center box: arc left edge bulges right, arc right edge bulges left
         _draw_box_outline(draw, center_left, rect_top, center_right, rect_bot,
                           arc_left=arc_bulge, arc_right=-arc_bulge)
         # Right box: rounded top-right, arc left edge bulges left
-        _draw_box_outline(draw, right_box_left, rect_top, w_ss - pad_x, rect_bot,
+        _draw_box_outline(draw, right_box_left, rect_top, w_ss - pad_x_outer, rect_bot,
                           round_tr=True, arc_left=-arc_bulge)
 
         # Top-left number — centered in left box
-        left_box_center_x = (pad_x + left_box_right) // 2
+        left_box_center_x = (pad_x_outer + left_box_right) // 2
         _draw_spaced_number(draw, left_box_center_x - total_tw // 2, ty)
 
         # Top-right number — centered in right box
-        right_box_center_x = (right_box_left + w_ss - pad_x) // 2
+        right_box_center_x = (right_box_left + w_ss - pad_x_outer) // 2
         _draw_spaced_number(draw, right_box_center_x - total_tw // 2, ty)
 
         # ── Ornament in center box ──
@@ -1262,11 +1270,11 @@ class DeckCreator:
         # Bottom boxes + numbers (rotated 180° for symmetry)
         temp = Image.new("RGBA", (w_ss, h_ss), (0, 0, 0, 0))
         temp_draw = ImageDraw.Draw(temp)
-        _draw_box_outline(temp_draw, pad_x, rect_top, left_box_right, rect_bot,
+        _draw_box_outline(temp_draw, pad_x_outer, rect_top, left_box_right, rect_bot,
                           round_tl=True, arc_right=arc_bulge)
         _draw_box_outline(temp_draw, center_left, rect_top, center_right, rect_bot,
                           arc_left=arc_bulge, arc_right=-arc_bulge)
-        _draw_box_outline(temp_draw, right_box_left, rect_top, w_ss - pad_x, rect_bot,
+        _draw_box_outline(temp_draw, right_box_left, rect_top, w_ss - pad_x_outer, rect_bot,
                           round_tr=True, arc_left=-arc_bulge)
         _draw_spaced_number(temp_draw, left_box_center_x - total_tw // 2, ty)
         _draw_spaced_number(temp_draw, right_box_center_x - total_tw // 2, ty)
