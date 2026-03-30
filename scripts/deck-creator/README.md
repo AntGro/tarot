@@ -45,6 +45,76 @@
 | `ornament.png` | Trump number decoration (placed at top + bottom) | 1 |
 | `joker_top.png` | Excuse figure top half | 1 |
 | `cardback.png` | Card back design | 1 |
+| **`style_guide.md`** | **Deck documentation (required, see template below)** | **1** |
+
+## Deck Documentation (`style_guide.md`)
+
+Every themed deck **must** include a `style_guide.md` at `images/decks/<name>/style_guide.md` describing all creative choices. This is generated alongside the assets, not after.
+
+### Required Template
+
+```markdown
+# <Deck Name> Tarot Deck — Style Guide
+
+## Theme
+Brief description of the deck's universe/setting and visual aesthetic.
+
+## Card Dimensions
+<width> × <height> pixels
+
+## Background
+Description of the shared background image (color palette, texture, mood).
+
+## Suits
+| Traditional | Themed Symbol | Visual Description | Color Tone |
+|------------|---------------|-------------------|------------|
+| Hearts ♥ | <name> | <what it looks like> | <dominant color> |
+| Diamonds ♦ | <name> | <what it looks like> | <dominant color> |
+| Clubs ♣ | <name> | <what it looks like> | <dominant color> |
+| Spades ♠ | <name> | <what it looks like> | <dominant color> |
+
+## Figure Cards
+| Rank | Hearts | Diamonds | Clubs | Spades |
+|------|--------|----------|-------|--------|
+| Valet (V) | <character name + description> | ... | ... | ... |
+| Cavalier (C) | <character name + description> | ... | ... | ... |
+| Dame (D) | <character name + description> | ... | ... | ... |
+| Roi (R) | <character name + description> | ... | ... | ... |
+
+### Figure Details
+For each figure, describe:
+- Who they are in the theme's universe
+- Key visual elements (costume, props, pose)
+- Why they were chosen for this suit/rank
+
+## Trump Cards (1-21)
+| Number | Name | Top Scene | Bottom Scene |
+|--------|------|-----------|--------------|
+| 1 | <name> | <description> | <description> |
+| 2 | <name> | <description> | <description> |
+| ... | ... | ... | ... |
+| 21 | <name> | <description> | <description> |
+
+### Trump Narrative
+Brief explanation of the trump sequence — is there a story arc, thematic progression, or symbolic order?
+
+## Excuse (Joker)
+- Character: <who/what>
+- Visual description: <pose, outfit, props>
+- Thematic significance: <why this character>
+
+## Ornament
+Description of the trump number zone ornament pattern.
+
+## AI Prompt Guidelines
+Style keywords and visual references used for this deck's image generation (for reproducibility).
+
+## File Structure
+<tree of generated files>
+
+## Generated
+<date> using the tarot deck pipeline
+```
 
 ## Usage
 
