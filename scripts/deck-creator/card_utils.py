@@ -80,3 +80,28 @@ def dominant_color(symbol: Image.Image) -> tuple:
     opaque = data[mask][:, :3]  # RGB only
     avg = opaque.mean(axis=0).astype(int)
     return (int(avg[0]), int(avg[1]), int(avg[2]), 255)
+
+
+def enforce_vertical_symmetry(img: Image.Image) -> Image.Image:
+    """Enforce vertical (left-right) symmetry on a symbol image.
+    
+    Takes the left half of the image and mirrors it onto the right half.
+    Preserves transparency. The image should be centered and have a
+    transparent background.
+    """
+    img = img.convert("RGBA")
+    w, h = img.size
+    mid = w // 2
+    
+    # Take the left half
+    left_half = img.crop((0, 0, mid, h))
+    
+    # Mirror it
+    right_half = left_half.transpose(Image.FLIP_LEFT_RIGHT)
+    
+    # Compose: left half + mirrored right half
+    result = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    result.paste(left_half, (0, 0))
+    result.paste(right_half, (w - mid, 0))
+    
+    return result

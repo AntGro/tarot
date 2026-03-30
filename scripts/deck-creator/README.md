@@ -27,12 +27,18 @@
    - Avoid textured/gradient/scenic backgrounds.
    - The pipeline includes **automatic leg detection** (`detect_legs`): warns if bottom 30% fill < 30%. If triggered, regenerate.
 
+9. **Suit symbol rules**:
+   - Generated suit symbols must be **vertically symmetrical** (like standard ♥♦♣♠).
+   - AI prompt must include "vertically symmetrical, symmetric along vertical axis".
+   - After generation, the pipeline enforces symmetry by mirroring the left half onto the right half.
+   - Symbols must have a **transparent background** and be centered.
+
 ## Assets Needed Per Deck
 
 | Asset | Description | Count |
 |-------|-------------|-------|
 | `background_top.png` | Top-half background (mirrored for full card) | 1 |
-| `symbol_*.png` | Suit symbol (♥♦♣♠) on transparent bg | 4 |
+| `symbol_*.png` | Suit symbol (♥♦♣♠) on transparent bg, **vertically symmetrical** | 4 |
 | `figure_*_top.png` | Face card top-half figure (transparent bg, complete character) | 16 (4 suits × 4 ranks) |
 | `trump_top_*.png` | Trump illustration top half | 21 |
 | `trump_bottom_*.png` | Trump illustration bottom half (optional, mirrors top) | 0-21 |
