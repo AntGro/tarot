@@ -57,13 +57,14 @@ xdg-open tarot/index.html   # Linux
 
 ```
 tarot/
-├── index.html     # Everything — HTML, CSS, JS, game engine (~1900 lines)
-├── images/        # Card artwork
-│   ├── trumps/    # 22 trump card illustrations (TN-00.jpg to TN-21.jpg)
-│   ├── cardback.jpg
-│   └── *.png      # Standard suit cards
+├── index.html        # Everything — HTML, CSS, JS, game engine (~1900 lines)
+├── deck-viewer.html  # Deck viewer for browsing existing card decks
+├── images/
+│   └── decks/        # Card artwork organized by deck theme
 └── README.md
 ```
+
+> **Looking for the deck creation pipeline?** It's been moved to its own repo: [deck-builder](https://github.com/AntGro/deck-builder)
 
 **Key design decisions:**
 - **Zero dependencies** (except PeerJS CDN for multiplayer)
