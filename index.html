@@ -44,10 +44,14 @@
 </script>
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23234d20'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='gold'>♠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 /* ═══════════════════════ CSS Variables ═══════════════════════ */
 :root {
+  /* Game board (felt) — untouched */
   --felt: #1a472a;
   --felt-light: #1e5631;
   --felt-dark: #0f2b18;
@@ -60,7 +64,8 @@
   --card-radius: 8px;
   --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
 
-  --font: 'Segoe UI', system-ui, sans-serif;
+  --font: 'Roboto', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: 'EB Garamond', serif;
   --text: #e8e0d0;
   --text-dim: #a09880;
   --danger: #c0392b;
@@ -69,6 +74,20 @@
   --panel-bg: rgba(0,0,0,0.35);
   --panel-radius: 12px;
   --transition: 0.3s ease;
+
+  /* Practiae lobby palette */
+  --pr-primary: oklch(0.65 0.15 264);
+  --pr-primary-hover: oklch(0.55 0.18 264);
+  --pr-accent: oklch(0.65 0.2 50);
+  --pr-bg: oklch(0.97 0 264);
+  --pr-bg-white: oklch(1 0 264);
+  --pr-text: oklch(0.15 0 264);
+  --pr-text-muted: oklch(0.556 0 89.876);
+  --pr-gradient: linear-gradient(135deg, oklch(0.55 0.18 264) 0%, oklch(0.42 0.14 280) 100%);
+  --pr-card-border: 1px solid oklch(0 0 0 / 0.06);
+  --pr-card-shadow: 0 2px 12px oklch(0 0 0 / 0.04);
+  --pr-radius: 12px;
+  --pr-btn-radius: 10px;
 }
 
 /* ═══════════════════════ Reset & Base ═══════════════════════ */
@@ -94,22 +113,30 @@ body {
   min-height: 100vh;
   gap: 24px;
   padding: 20px;
+  background: var(--pr-bg);
+  color: var(--pr-text);
+  font-family: var(--font);
 }
 .lobby-title {
+  font-family: var(--font-heading);
   font-size: 3rem;
-  color: var(--gold);
-  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
-  letter-spacing: 4px;
+  font-weight: 700;
+  background: var(--pr-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 2px;
 }
 .lobby-subtitle {
-  color: var(--text-dim);
+  color: var(--pr-text-muted);
   font-size: 1rem;
   margin-top: -16px;
 }
 .lobby-panel {
-  background: var(--panel-bg);
-  border: 1px solid rgba(212,175,55,0.2);
-  border-radius: var(--panel-radius);
+  background: var(--pr-bg-white);
+  border: var(--pr-card-border);
+  border-radius: 16px;
+  box-shadow: var(--pr-card-shadow);
   padding: 32px;
   display: flex;
   flex-direction: column;
@@ -119,27 +146,50 @@ body {
   width: 100%;
 }
 .lobby-panel h2 {
-  color: var(--gold);
-  font-size: 1.2rem;
+  font-family: var(--font-heading);
+  color: var(--pr-primary);
+  font-size: 1.3rem;
+  font-weight: 600;
   text-align: center;
   margin-bottom: 4px;
 }
 .lobby-panel input {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px;
+  background: var(--pr-bg);
+  border: 1px solid oklch(0 0 0 / 0.12);
+  border-radius: var(--pr-btn-radius);
   padding: 12px 16px;
-  color: var(--text);
+  color: var(--pr-text);
   font-size: 1rem;
+  outline: none;
+  transition: border var(--transition), box-shadow var(--transition);
+}
+.lobby-panel input:focus {
+  border-color: var(--pr-primary);
+  box-shadow: 0 0 0 3px oklch(0.65 0.15 264 / 0.15);
+}
+.lobby-panel input::placeholder { color: var(--pr-text-muted); }
+.lobby-panel select {
+  background: var(--pr-bg);
+  border: 1px solid oklch(0 0 0 / 0.12);
+  border-radius: var(--pr-btn-radius);
+  padding: 10px 14px;
+  color: var(--pr-text);
+  font-size: 0.9rem;
   outline: none;
   transition: border var(--transition);
 }
-.lobby-panel input:focus { border-color: var(--gold); }
-.lobby-panel input::placeholder { color: var(--text-dim); }
+.lobby-panel select:focus { border-color: var(--pr-primary); }
+.lobby-panel a {
+  color: var(--pr-primary) !important;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.lobby-panel a:hover { color: var(--pr-primary-hover) !important; }
 .btn {
   padding: 12px 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--pr-btn-radius);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -148,44 +198,45 @@ body {
   letter-spacing: 1px;
 }
 .btn-gold {
-  background: linear-gradient(135deg, var(--gold), #c9a430);
-  color: #1a1a1a;
-}
-.btn-gold:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(212,175,55,0.4); }
-.btn-outline {
-  background: transparent;
-  border: 2px solid var(--gold);
-  color: var(--gold);
-}
-.btn-outline:hover { background: rgba(212,175,55,0.15); }
-.btn-ai {
-  background: linear-gradient(135deg, var(--info), #1a6dad);
+  background: var(--pr-gradient);
   color: white;
 }
-.btn-ai:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(41,128,185,0.4); }
+.btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 16px oklch(0.55 0.18 264 / 0.3); }
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--pr-primary);
+  color: var(--pr-primary);
+}
+.btn-outline:hover { background: oklch(0.65 0.15 264 / 0.08); transform: translateY(-1px); }
+.btn-ai {
+  background: var(--pr-accent);
+  color: white;
+}
+.btn-ai:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 16px oklch(0.65 0.2 50 / 0.3); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 .room-code-display {
   font-size: 2.5rem;
-  font-family: monospace;
-  color: var(--gold);
+  font-family: 'EB Garamond', monospace;
+  color: var(--pr-primary);
   text-align: center;
   letter-spacing: 8px;
-  padding: 8px;
-  background: rgba(0,0,0,0.3);
-  border-radius: 8px;
+  padding: 12px;
+  background: var(--pr-bg);
+  border: 1px solid oklch(0 0 0 / 0.08);
+  border-radius: var(--pr-radius);
   cursor: pointer;
   transition: background var(--transition);
 }
-.room-code-display:hover { background: rgba(0,0,0,0.5); }
+.room-code-display:hover { background: oklch(0.94 0.02 264); }
 .status-msg {
   text-align: center;
-  color: var(--text-dim);
+  color: var(--pr-text-muted);
   font-size: 0.9rem;
   min-height: 1.4em;
 }
 .lobby-or {
   text-align: center;
-  color: var(--text-dim);
+  color: var(--pr-text-muted);
   font-size: 0.85rem;
   position: relative;
 }
@@ -195,7 +246,7 @@ body {
   top: 50%;
   width: 35%;
   height: 1px;
-  background: rgba(255,255,255,0.1);
+  background: oklch(0 0 0 / 0.1);
 }
 .lobby-or::before { left: 0; }
 .lobby-or::after { right: 0; }
@@ -490,25 +541,29 @@ body {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.7);
+  background: oklch(0 0 0 / 0.5);
   z-index: 200;
   justify-content: center;
   align-items: center;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
 }
 #game-over-overlay.active { display: flex; }
 .game-over-panel {
-  background: var(--felt-dark);
-  border: 2px solid var(--gold);
-  border-radius: var(--panel-radius);
+  background: var(--pr-bg-white);
+  border: var(--pr-card-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px oklch(0 0 0 / 0.12);
   padding: 40px;
   text-align: center;
   min-width: 340px;
   max-width: 480px;
+  color: var(--pr-text);
 }
 .game-over-panel h2 {
-  color: var(--gold);
+  font-family: var(--font-heading);
+  color: var(--pr-primary);
   font-size: 2rem;
+  font-weight: 700;
   margin-bottom: 16px;
 }
 .score-breakdown {
@@ -521,12 +576,13 @@ body {
 .score-row {
   display: flex;
   justify-content: space-between;
-  padding: 6px 12px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--pr-bg);
+  border-radius: 8px;
+  color: var(--pr-text);
 }
-.score-row .label { color: var(--text-dim); }
-.score-row .value { font-weight: 700; }
+.score-row .label { color: var(--pr-text-muted); }
+.score-row .value { font-weight: 700; color: var(--pr-text); }
 
 .match-score-bar {
   display: flex;
@@ -535,13 +591,14 @@ body {
   gap: 16px;
   margin-top: 16px;
   padding: 10px 16px;
-  background: rgba(255,215,0,0.08);
-  border: 1px solid rgba(255,215,0,0.2);
-  border-radius: 8px;
+  background: oklch(0.65 0.15 264 / 0.06);
+  border: 1px solid oklch(0.65 0.15 264 / 0.15);
+  border-radius: var(--pr-radius);
   font-size: 0.85rem;
+  color: var(--pr-text);
 }
-.match-score-bar .match-label { color: var(--text-dim); font-size: 0.75rem; }
-.match-score-bar .match-pts { font-weight: 700; font-size: 1.1rem; }
+.match-score-bar .match-label { color: var(--pr-text-muted); font-size: 0.75rem; }
+.match-score-bar .match-pts { font-weight: 700; font-size: 1.1rem; color: var(--pr-primary); }
 .match-score-bar .match-sep { opacity: 0.4; }
 
 .match-score-header {
@@ -559,15 +616,15 @@ body {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%) translateY(100px);
-  background: var(--panel-bg);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 8px;
+  background: var(--pr-bg-white);
+  border: var(--pr-card-border);
+  border-radius: var(--pr-radius);
+  box-shadow: 0 4px 20px oklch(0 0 0 / 0.1);
   padding: 12px 24px;
-  color: var(--text);
+  color: var(--pr-text);
   font-size: 0.9rem;
   z-index: 300;
   transition: transform 0.4s ease;
-  backdrop-filter: blur(8px);
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
@@ -575,7 +632,7 @@ body {
 @media (max-width: 600px) {
   :root { --card-w: 56px; --card-h: 103px; --card-radius: 5px; }
   .lobby-title { font-size: 2rem; }
-  .lobby-panel { min-width: unset; padding: 20px; }
+  .lobby-panel { min-width: unset; padding: 20px; border-radius: var(--pr-radius); }
   .room-code-display { font-size: 1.8rem; letter-spacing: 6px; }
   .center-zone { gap: 16px; min-height: 0; }
   .game-header { flex-direction: column; gap: 6px; text-align: center; }
@@ -626,11 +683,11 @@ body {
 
   <div class="lobby-panel" style="margin-top:8px;">
     <h2>Style des cartes</h2>
-    <select id="deck-picker" onchange="setDeck(this.value)" style="width:100%;padding:8px;border-radius:var(--panel-radius);border:1px solid var(--text);background:var(--panel-bg);color:var(--text);font-size:0.9rem;">
+    <select id="deck-picker" onchange="setDeck(this.value)" style="width:100%;">
       <option value="grimaud">Classique (Grimaud)</option>
       <option value="refn">Refn Neon</option>
     </select>
-    <a href="deck-viewer.html" style="display:block;text-align:center;margin-top:10px;color:var(--gold-dim);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--gold-dim)'">🃏 Voir les decks complets</a>
+    <a href="deck-viewer.html" style="display:block;text-align:center;margin-top:10px;font-size:0.85rem;text-decoration:none;">🃏 Voir les decks complets</a>
   </div>
 </div>
 
