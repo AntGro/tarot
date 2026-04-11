@@ -43,7 +43,7 @@
 }
 </script>
 
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23234d20'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='gold'>♠</text></svg>">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%235B4FC7'/%3E%3Cstop offset='100%25' stop-color='%23413394'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='EB Garamond,serif' font-size='18' fill='%23f0e8d8'%3E♠%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -51,27 +51,27 @@
 <style>
 /* ═══════════════════════ CSS Variables ═══════════════════════ */
 :root {
-  /* Game board (felt) — untouched */
-  --felt: #1a472a;
-  --felt-light: #1e5631;
-  --felt-dark: #0f2b18;
-  --gold: #d4af37;
-  --gold-dim: #8b7023;
+  /* Game board — Practiae refined palette */
+  --felt: oklch(0.22 0.06 270);
+  --felt-light: oklch(0.28 0.08 268);
+  --felt-dark: oklch(0.14 0.04 275);
+  --gold: oklch(0.75 0.15 264);
+  --gold-dim: oklch(0.55 0.12 264);
   --card-w: 80px;
   --card-h: 148px;
   --card-img-w: 80px;
   --card-img-h: 148px;
   --card-radius: 8px;
-  --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.35);
 
-  --font: 'Roboto', 'Segoe UI', system-ui, sans-serif;
+  --font: 'EB Garamond', Georgia, serif;
   --font-heading: 'EB Garamond', serif;
-  --text: #e8e0d0;
-  --text-dim: #a09880;
+  --text: oklch(0.92 0.01 264);
+  --text-dim: oklch(0.65 0.03 264);
   --danger: #c0392b;
   --success: #27ae60;
-  --info: #2980b9;
-  --panel-bg: rgba(0,0,0,0.35);
+  --info: oklch(0.65 0.15 264);
+  --panel-bg: oklch(0 0 0 / 0.3);
   --panel-radius: 12px;
   --transition: 0.3s ease;
 
@@ -275,10 +275,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px;
-  background: var(--panel-bg);
+  padding: 6px 14px;
+  background: oklch(0 0 0 / 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: var(--panel-radius);
   margin-bottom: 2px;
+  border: 1px solid oklch(1 0 0 / 0.06);
 }
 .player-info {
   display: flex;
@@ -289,19 +292,20 @@ body {
   font-weight: 600;
   font-size: 0.85rem;
 }
-.player-name.active-turn { color: var(--gold); }
+.player-name.active-turn { color: var(--gold); text-shadow: 0 0 8px oklch(0.65 0.15 264 / 0.4); }
 .player-score {
   font-size: 0.75rem;
   color: var(--text-dim);
 }
 .turn-indicator {
-  background: var(--gold);
-  color: #1a1a1a;
+  background: var(--pr-gradient);
+  color: #fff;
   padding: 2px 10px;
   border-radius: 20px;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ═══════════════════════ Play Area ═══════════════════════ */
@@ -355,7 +359,7 @@ body {
 .played-card-slot {
   width: var(--card-w);
   height: var(--card-h);
-  border: 2px dashed rgba(255,255,255,0.15);
+  border: 2px dashed oklch(1 0 0 / 0.12);
   border-radius: var(--card-radius);
   display: flex;
   align-items: center;
@@ -434,7 +438,7 @@ body {
   border-radius: var(--card-radius);
   display: block;
 }
-.card.oudler { box-shadow: 0 0 0 2px var(--gold), var(--card-shadow); }
+.card.oudler { box-shadow: 0 0 0 2px var(--pr-primary), var(--card-shadow); }
 
 .card-back {
   width: var(--card-w);
@@ -456,7 +460,7 @@ body {
 .hand-card.playable:hover {
   transform: translateY(-20px) !important;
   z-index: 100 !important;
-  box-shadow: 0 0 0 2px var(--success), 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 2px var(--pr-primary), 0 8px 24px rgba(0,0,0,0.5);
 }
 .hand-card.not-playable { filter: brightness(0.35); pointer-events: none; }
 .hand-card { transition: opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease; }
@@ -485,7 +489,7 @@ body {
 .stack-card.playable { cursor: pointer; }
 .stack-card.playable:hover {
   transform: translateY(-8px) !important;
-  box-shadow: 0 0 0 2px var(--success), 0 6px 16px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 2px var(--pr-primary), 0 6px 16px rgba(0,0,0,0.5);
 }
 .stack-card.not-playable { filter: brightness(0.35); pointer-events: none; }
 
@@ -502,7 +506,7 @@ body {
   content: '';
   width: var(--card-w);
   height: var(--card-h);
-  border: 2px dashed rgba(255,255,255,0.12);
+  border: 2px dashed oklch(1 0 0 / 0.1);
   border-radius: var(--card-radius);
 }
 .mini-stack.empty-stack {
@@ -517,7 +521,7 @@ body {
   content: '';
   width: var(--card-w);
   height: var(--card-h);
-  border: 2px dashed rgba(255,255,255,0.12);
+  border: 2px dashed oklch(1 0 0 / 0.1);
   border-radius: var(--card-radius);
 }
 
@@ -627,6 +631,34 @@ body {
   transition: transform 0.4s ease;
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ═══════════════════════ Game Phase — Practiae Refinements ═══════════════════════ */
+#game-screen {
+  background: var(--felt);
+  background-image:
+    radial-gradient(ellipse at 50% 0%, var(--felt-light) 0%, transparent 70%),
+    radial-gradient(ellipse at 50% 100%, var(--felt-dark) 0%, transparent 70%);
+}
+
+.game-header .player-name {
+  font-family: var(--font-heading);
+  letter-spacing: 0.02em;
+}
+
+.center-zone .label {
+  font-family: var(--font-heading);
+  letter-spacing: 0.04em;
+}
+
+.card {
+  border-color: oklch(0 0 0 / 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.hand-card.playable {
+  cursor: pointer;
+  filter: brightness(1.05);
+}
 
 /* ═══════════════════════ Responsive ═══════════════════════ */
 @media (max-width: 600px) {
