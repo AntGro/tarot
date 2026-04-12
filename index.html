@@ -43,7 +43,7 @@
 }
 </script>
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%235B4FC7'/%3E%3Cstop offset='100%25' stop-color='%23413394'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='EB Garamond,serif' font-size='18' fill='%23f0e8d8'%3E♠%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236B5FD7'/%3E%3Cstop offset='100%25' stop-color='%23453AAA'/%3E%3C/linearGradient%3E%3Cfilter id='s'%3E%3CfeDropShadow dx='0' dy='0.5' stdDeviation='0.8' flood-color='%23000' flood-opacity='0.3'/%3E%3C/filter%3E%3Cfilter id='gl'%3E%3CfeGaussianBlur stdDeviation='1.5' result='blur'/%3E%3CfeMerge%3E%3CfeMergeNode in='blur'/%3E%3CfeMergeNode in='SourceGraphic'/%3E%3C/feMerge%3E%3C/filter%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Crect x='0.5' y='0.5' width='31' height='31' rx='6.5' fill='none' stroke='%23ffffff' stroke-opacity='0.12'/%3E%3Ctext x='16' y='23.5' text-anchor='middle' font-family='EB Garamond,serif' font-size='19' font-weight='700' fill='%23f4eed8' filter='url(%23s)'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -51,27 +51,27 @@
 <style>
 /* ═══════════════════════ CSS Variables ═══════════════════════ */
 :root {
-  /* Game board — Practiae refined palette (bright) */
-  --felt: oklch(0.50 0.05 270);
-  --felt-light: oklch(0.60 0.06 268);
-  --felt-dark: oklch(0.42 0.04 275);
-  --gold: oklch(0.75 0.15 264);
+  /* Game board — Practiae-inspired light palette */
+  --felt: oklch(0.92 0.015 270);
+  --felt-light: oklch(0.96 0.01 268);
+  --felt-dark: oklch(0.88 0.02 275);
+  --gold: oklch(0.65 0.15 264);
   --gold-dim: oklch(0.55 0.12 264);
   --card-w: 80px;
   --card-h: 148px;
   --card-img-w: 80px;
   --card-img-h: 148px;
   --card-radius: 8px;
-  --card-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  --card-shadow: 0 2px 8px oklch(0 0 0 / 0.08), 0 1px 3px oklch(0 0 0 / 0.06);
 
   --font: 'EB Garamond', Georgia, serif;
   --font-heading: 'EB Garamond', serif;
-  --text: oklch(0.92 0.01 264);
-  --text-dim: oklch(0.65 0.03 264);
+  --text: oklch(0.18 0.01 264);
+  --text-dim: oklch(0.45 0.03 264);
   --danger: #c0392b;
   --success: #27ae60;
   --info: oklch(0.65 0.15 264);
-  --panel-bg: oklch(0 0 0 / 0.15);
+  --panel-bg: oklch(1 0 0 / 0.55);
   --panel-radius: 12px;
   --transition: 0.3s ease;
 
@@ -98,7 +98,9 @@ body {
   background: var(--felt);
   background-image:
     radial-gradient(ellipse at 50% 0%, var(--felt-light) 0%, transparent 70%),
-    radial-gradient(ellipse at 50% 100%, var(--felt-dark) 0%, transparent 70%);
+    radial-gradient(ellipse at 50% 100%, var(--felt-dark) 0%, transparent 70%),
+    radial-gradient(circle at 30% 50%, oklch(0.90 0.03 264 / 0.4) 0%, transparent 50%),
+    radial-gradient(circle at 70% 50%, oklch(0.90 0.03 280 / 0.3) 0%, transparent 50%);
   min-height: 100vh;
   overflow-x: hidden;
   user-select: none;
@@ -276,12 +278,13 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 6px 14px;
-  background: oklch(0 0 0 / 0.12);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: oklch(1 0 0 / 0.72);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border-radius: var(--panel-radius);
   margin-bottom: 2px;
-  border: 1px solid oklch(1 0 0 / 0.06);
+  border: 1px solid oklch(0 0 0 / 0.06);
+  box-shadow: inset 0 1px 2px oklch(1 0 0 / 0.3), 0 1px 4px oklch(0 0 0 / 0.06);
 }
 .player-info {
   display: flex;
@@ -292,7 +295,7 @@ body {
   font-weight: 600;
   font-size: 0.85rem;
 }
-.player-name.active-turn { color: var(--gold); text-shadow: 0 0 8px oklch(0.65 0.15 264 / 0.4); }
+.player-name.active-turn { color: var(--pr-primary); text-shadow: 0 0 8px oklch(0.65 0.15 264 / 0.25); }
 .player-score {
   font-size: 0.75rem;
   color: var(--text-dim);
@@ -333,9 +336,9 @@ body {
   width: calc(var(--card-w) * 0.5);
   height: calc(var(--card-h) * 0.5);
   background: url('images/decks/grimaud/cardback.jpg') center/cover;
-  border: 1px solid rgba(0,0,0,0.4);
+  border: 1px solid oklch(0 0 0 / 0.12);
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.08);
 }
 .opponent-stacks {
   display: flex;
@@ -359,12 +362,13 @@ body {
 .played-card-slot {
   width: var(--card-w);
   height: var(--card-h);
-  border: 2px dashed oklch(1 0 0 / 0.12);
+  border: 1.5px dashed oklch(0.65 0.08 264 / 0.25);
   border-radius: var(--card-radius);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  background: oklch(1 0 0 / 0.15);
 }
 .played-card-slot .label {
   position: absolute;
@@ -422,7 +426,7 @@ body {
   width: var(--card-w);
   height: var(--card-h);
   border-radius: var(--card-radius);
-  border: 1px solid rgba(0,0,0,0.4);
+  border: 1px solid oklch(0 0 0 / 0.1);
   box-shadow: var(--card-shadow);
   position: relative;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -444,7 +448,7 @@ body {
   width: var(--card-w);
   height: var(--card-h);
   border-radius: var(--card-radius);
-  border: 1px solid rgba(0,0,0,0.4);
+  border: 1px solid oklch(0 0 0 / 0.1);
   background: url('images/decks/grimaud/cardback.jpg') top left / var(--card-img-w, 100%) var(--card-img-h, 100%) no-repeat;
   box-shadow: var(--card-shadow);
   position: relative;
@@ -460,9 +464,9 @@ body {
 .hand-card.playable:hover {
   transform: translateY(-20px) !important;
   z-index: 100 !important;
-  box-shadow: 0 0 0 2px var(--pr-primary), 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 2px var(--pr-primary), 0 8px 24px oklch(0 0 0 / 0.15);
 }
-.hand-card.not-playable { filter: brightness(0.35); pointer-events: none; }
+.hand-card.not-playable { filter: brightness(0.6) saturate(0.5); pointer-events: none; }
 .hand-card { transition: opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease; }
 
 /* Stack cards */
@@ -489,9 +493,9 @@ body {
 .stack-card.playable { cursor: pointer; }
 .stack-card.playable:hover {
   transform: translateY(-8px) !important;
-  box-shadow: 0 0 0 2px var(--pr-primary), 0 6px 16px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 2px var(--pr-primary), 0 6px 16px oklch(0 0 0 / 0.12);
 }
-.stack-card.not-playable { filter: brightness(0.35); pointer-events: none; }
+.stack-card.not-playable { filter: brightness(0.6) saturate(0.5); pointer-events: none; }
 
 /* Empty stack placeholder */
 .stack-container.empty-stack {
@@ -506,7 +510,7 @@ body {
   content: '';
   width: var(--card-w);
   height: var(--card-h);
-  border: 2px dashed oklch(1 0 0 / 0.1);
+  border: 1.5px dashed oklch(0.65 0.08 264 / 0.2);
   border-radius: var(--card-radius);
 }
 .mini-stack.empty-stack {
@@ -521,7 +525,7 @@ body {
   content: '';
   width: var(--card-w);
   height: var(--card-h);
-  border: 2px dashed oklch(1 0 0 / 0.1);
+  border: 1.5px dashed oklch(0.65 0.08 264 / 0.2);
   border-radius: var(--card-radius);
 }
 
@@ -537,7 +541,7 @@ body {
   height: var(--card-h);
   background: url('images/decks/grimaud/cardback.jpg') center/cover;
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.08);
 }
 
 /* ═══════════════════════ Game Over ═══════════════════════ */
@@ -637,7 +641,9 @@ body {
   background: var(--felt);
   background-image:
     radial-gradient(ellipse at 50% 0%, var(--felt-light) 0%, transparent 70%),
-    radial-gradient(ellipse at 50% 100%, var(--felt-dark) 0%, transparent 70%);
+    radial-gradient(ellipse at 50% 100%, var(--felt-dark) 0%, transparent 70%),
+    radial-gradient(circle at 25% 40%, oklch(0.90 0.03 264 / 0.5) 0%, transparent 45%),
+    radial-gradient(circle at 75% 60%, oklch(0.90 0.02 280 / 0.4) 0%, transparent 45%);
 }
 
 .game-header .player-name {
@@ -651,7 +657,7 @@ body {
 }
 
 .card {
-  border-color: oklch(0 0 0 / 0.3);
+  border-color: oklch(0 0 0 / 0.08);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
